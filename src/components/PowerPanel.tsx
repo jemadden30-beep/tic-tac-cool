@@ -59,8 +59,13 @@ export function PowerPanel({
           const def = POWER_DEFS[id];
           const status = powerAvailability(room, player, id);
           const active = selected === id;
-          const locked = !!def.requiresExpanded && room.boardSize < 4;
+          const locked =
+            (!!def.requiresExpanded && room.boardSize < 4) ||
+            (!!def.requiresExpansionUsed &&
+              !(player.usedPowers || []).includes("expansion"));
           const used = (player.usedPowers || []).includes(id);
+          const costLabel =
+            id === "double_expansion" ? "ALL" : String(def.cost);
           const broke = !status.ok;
           return (
             <button
@@ -80,14 +85,16 @@ export function PowerPanel({
               <div className="flex items-start justify-between gap-1">
                 <span className="text-base leading-none sm:text-lg">{def.emoji}</span>
                 <span className="rounded-md bg-sky-500/20 px-1 py-0.5 text-[9px] font-bold text-sky-200">
-                  ⚡{def.cost}
+                  ⚡{costLabel}
                 </span>
               </div>
               <div className="mt-1 text-[10px] font-bold leading-tight text-white/90 sm:text-xs">
                 {def.name}
               </div>
               {locked && (
-                <span className="mt-0.5 inline-block text-[9px] text-amber-300">🔒 4×4</span>
+                <span className="mt-0.5 inline-block text-[9px] text-amber-300">
+                  🔒 {def.requiresExpansionUsed ? "Need Expansion" : "4×4"}
+                </span>
               )}
               {used && !locked && (
                 <span className="mt-0.5 inline-block text-[9px] text-white/40">Used</span>

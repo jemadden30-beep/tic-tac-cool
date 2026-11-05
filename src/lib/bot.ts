@@ -31,7 +31,7 @@ function isProtected(room: RoomState, index: number): boolean {
   return room.players.some((p) => p.shieldIndex === index);
 }
 
-function wouldWin(board: Cell[], size: 3 | 4, index: number, mark: Mark): boolean {
+function wouldWin(board: Cell[], size: 3 | 4 | 5, index: number, mark: Mark): boolean {
   if (board[index] !== null) return false;
   const next = [...board];
   next[index] = mark;
@@ -40,7 +40,7 @@ function wouldWin(board: Cell[], size: 3 | 4, index: number, mark: Mark): boolea
 
 function findWinningMove(
   board: Cell[],
-  size: 3 | 4,
+  size: 3 | 4 | 5,
   mark: Mark,
   locked: number | null
 ): number | null {
@@ -54,7 +54,7 @@ function countMark(board: Cell[], line: number[], mark: Mark): number {
   return line.reduce((n, i) => n + (board[i] === mark ? 1 : 0), 0);
 }
 
-function heuristic(board: Cell[], size: 3 | 4, me: Mark): number {
+function heuristic(board: Cell[], size: 3 | 4 | 5, me: Mark): number {
   const opp = opponentOf(me);
   const win = checkWinner(board, size);
   if (win?.winner === me) return 10000;
@@ -71,14 +71,15 @@ function heuristic(board: Cell[], size: 3 | 4, me: Mark): number {
     else if (theirs === size - 2) score -= 22;
     else if (theirs > 0) score -= theirs * 3;
   }
-  const center = size === 3 ? [4] : [5, 6, 9, 10];
+  const center =
+    size === 3 ? [4] : size === 4 ? [5, 6, 9, 10] : [12];
   for (const c of center) if (board[c] === me) score += 4;
   return score;
 }
 
 function minimax(
   board: Cell[],
-  size: 3 | 4,
+  size: 3 | 4 | 5,
   me: Mark,
   turn: Mark,
   depth: number,
@@ -190,7 +191,12 @@ function buildPowerAction(
       if (!room.lastPlace || room.lastPlace.mark !== opp) return null;
       return { type: "power", power, target: { kind: "none" } };
     case "expansion":
-      if (room.boardSize === 4) return null;
+      if (room.boardSize >= 4) return null;
+      return { type: "power", power, target: { kind: "none" } };
+    case "double_expansion":
+      if (room.boardSize >= 5) return null;
+      if (!(bot.usedPowers || []).includes("expansion")) return null;
+      if ((bot.energy ?? 0) <= 0) return null;
       return { type: "power", power, target: { kind: "none" } };
     case "double":
       if (room.boardSize < 4 || empty.length < 2) return null;
@@ -300,6 +306,7 @@ function maybePower(
           "double",
           "tornado",
           "expansion",
+          "double_expansion",
         ];
 
   for (const power of cheapFirst) {

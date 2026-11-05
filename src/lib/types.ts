@@ -18,7 +18,8 @@ export type PowerId =
   | "bomb"
   | "lock"
   | "clone"
-  | "silence";
+  | "silence"
+  | "double_expansion";
 
 export type PowerTarget =
   | { kind: "cell"; index: number }
@@ -38,6 +39,8 @@ export interface PowerDef {
   targetOpponent?: boolean;
   targetEmpty?: boolean;
   requiresExpanded?: boolean;
+  /** Unlocks only after Expansion was used this round */
+  requiresExpansionUsed?: boolean;
 }
 
 export interface PlayerState {
@@ -85,7 +88,7 @@ export interface RoomState {
   mode: GameMode;
   difficulty: BotDifficulty | null;
   firstTo: number;
-  boardSize: 3 | 4;
+  boardSize: 3 | 4 | 5;
   board: Cell[];
   turn: Mark;
   players: PlayerState[];

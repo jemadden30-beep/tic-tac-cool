@@ -21,6 +21,7 @@ Power-up tic-tac-toe with online multiplayer, hotseat, chat, series scoring, and
 - Every power costs energy and can be used **once per game (round)**.
 - Powers do **not** end your turn — place a mark afterward.
 - **Double Place** unlocks only on a **4×4** board.
+- **Double Expansion** unlocks only after **Expansion** has been used this round; costs **all** remaining energy and grows to **5×5**.
 
 | Power | Cost | Effect |
 | --- | ---: | --- |
@@ -41,6 +42,7 @@ Power-up tic-tac-toe with online multiplayer, hotseat, chat, series scoring, and
 | 🧬 Clone | 40 | Copy opponent mark onto an empty cell as yours |
 | 🌪️ Tornado | 40 | Shuffle all tiles |
 | 📐 Expansion | 45 | Grow board to 4×4 |
+| 🚀 Double Expansion | ALL ⚡ | Grow to 5×5 (need 5 in a row); unlocks after Expansion |
 
 
 ## Quick start

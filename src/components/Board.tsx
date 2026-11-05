@@ -30,7 +30,12 @@ export function Board({
         className="grid gap-1.5 sm:gap-2"
         style={{
           gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))`,
-          width: size === 3 ? "min(72vw, 260px)" : "min(78vw, 300px)",
+          width:
+            size === 3
+              ? "min(72vw, 260px)"
+              : size === 4
+                ? "min(78vw, 300px)"
+                : "min(84vw, 340px)",
         }}
       >
         {room.board.map((cell, i) => {

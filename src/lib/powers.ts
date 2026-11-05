@@ -149,6 +149,15 @@ export const POWER_DEFS: Record<PowerId, PowerDef> = {
     cost: 45,
     needsTarget: "none",
   },
+  double_expansion: {
+    id: "double_expansion",
+    name: "Double Expansion",
+    emoji: "🚀",
+    description: "Blast to 5×5 (need 5 in a row). Costs ALL your energy.",
+    cost: 0, // special: drains all energy at use time
+    needsTarget: "none",
+    requiresExpansionUsed: true,
+  },
 };
 
 export const ALL_POWERS = Object.keys(POWER_DEFS) as PowerId[];
@@ -172,9 +181,11 @@ export const POWER_ORDER: PowerId[] = [
   "double",
   "tornado",
   "expansion",
+  "double_expansion",
 ];
 
 export function canAfford(player: PlayerState, power: PowerId): boolean {
+  if (power === "double_expansion") return (player.energy ?? 0) > 0;
   return (player.energy ?? 0) >= POWER_DEFS[power].cost;
 }
 
@@ -182,9 +193,17 @@ export function hasUsed(player: PlayerState, power: PowerId): boolean {
   return (player.usedPowers || []).includes(power);
 }
 
-export function isPowerUnlocked(room: RoomState, power: PowerId): boolean {
+export function isPowerUnlocked(
+  room: RoomState,
+  power: PowerId,
+  player?: PlayerState
+): boolean {
   const def = POWER_DEFS[power];
   if (def.requiresExpanded && room.boardSize < 4) return false;
+  if (def.requiresExpansionUsed) {
+    const used = (player?.usedPowers || []).includes("expansion");
+    if (!used) return false;
+  }
   return true;
 }
 
@@ -193,8 +212,14 @@ export function powerAvailability(
   player: PlayerState,
   power: PowerId
 ): { ok: boolean; reason?: string } {
-  if (!isPowerUnlocked(room, power)) {
+  if (!isPowerUnlocked(room, power, player)) {
+    if (POWER_DEFS[power].requiresExpansionUsed) {
+      return { ok: false, reason: "Use Expansion first" };
+    }
     return { ok: false, reason: "Unlocks on 4×4" };
+  }
+  if (power === "double_expansion" && (player.energy ?? 0) <= 0) {
+    return { ok: false, reason: "Need some ⚡ to dump" };
   }
   if (player.silenced) return { ok: false, reason: "Silenced" };
   if (hasUsed(player, power)) return { ok: false, reason: "Already used" };

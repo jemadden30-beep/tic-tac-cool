@@ -7,11 +7,40 @@ import {
   powerAvailability,
 } from "./powers";
 
-export function emptyBoard(size: 3 | 4): Cell[] {
+export function emptyBoard(size: 3 | 4 | 5): Cell[] {
   return Array(size * size).fill(null);
 }
 
-export function winningLines(size: 3 | 4): number[][] {
+/** Copy current board into top-left of a larger board; remap shields/locks. */
+function expandBoardTo(room: RoomState, nextSize: 4 | 5) {
+  const prev = room.boardSize;
+  if (prev >= nextSize) return false;
+  const next = emptyBoard(nextSize);
+  for (let r = 0; r < prev; r++) {
+    for (let c = 0; c < prev; c++) {
+      next[r * nextSize + c] = room.board[r * prev + c];
+    }
+  }
+  room.board = next;
+  room.boardSize = nextSize;
+  room.players.forEach((p) => {
+    if (p.shieldIndex !== null) {
+      const old = p.shieldIndex;
+      const r = Math.floor(old / prev);
+      const c = old % prev;
+      p.shieldIndex = r * nextSize + c;
+    }
+  });
+  if (room.lockedCell !== null) {
+    const old = room.lockedCell;
+    const r = Math.floor(old / prev);
+    const c = old % prev;
+    room.lockedCell = r * nextSize + c;
+  }
+  return true;
+}
+
+export function winningLines(size: 3 | 4 | 5): number[][] {
   const lines: number[][] = [];
   for (let r = 0; r < size; r++) {
     const row: number[] = [];
@@ -35,7 +64,7 @@ export function winningLines(size: 3 | 4): number[][] {
 
 export function checkWinner(
   board: Cell[],
-  size: 3 | 4
+  size: 3 | 4 | 5
 ): { winner: Mark; line: number[] } | null {
   for (const line of winningLines(size)) {
     const first = board[line[0]];
@@ -339,30 +368,19 @@ function applyPowerAs(
       break;
     }
     case "expansion": {
-      if (room.boardSize === 4) return { ok: false, error: "Already 4×4" };
-      const next = emptyBoard(4);
-      for (let r = 0; r < 3; r++) {
-        for (let c = 0; c < 3; c++) {
-          next[r * 4 + c] = room.board[r * 3 + c];
-        }
-      }
-      room.board = next;
-      room.boardSize = 4;
-      room.players.forEach((p) => {
-        if (p.shieldIndex !== null) {
-          const old = p.shieldIndex;
-          const r = Math.floor(old / 3);
-          const c = old % 3;
-          p.shieldIndex = r * 4 + c;
-        }
-      });
-      if (room.lockedCell !== null) {
-        const old = room.lockedCell;
-        const r = Math.floor(old / 3);
-        const c = old % 3;
-        room.lockedCell = r * 4 + c;
-      }
+      if (room.boardSize >= 4) return { ok: false, error: "Already expanded" };
+      if (!expandBoardTo(room, 4)) return { ok: false, error: "Cannot expand" };
       meta = { size: 4 };
+      break;
+    }
+    case "double_expansion": {
+      if (room.boardSize >= 5) return { ok: false, error: "Already 5×5" };
+      if (!(player.usedPowers || []).includes("expansion")) {
+        return { ok: false, error: "Use Expansion first" };
+      }
+      if ((player.energy ?? 0) <= 0) return { ok: false, error: "Need some ⚡" };
+      if (!expandBoardTo(room, 5)) return { ok: false, error: "Cannot expand" };
+      meta = { size: 5, drained: player.energy };
       break;
     }
     case "swap": {
@@ -546,7 +564,11 @@ function applyPowerAs(
       return { ok: false, error: "Unknown power" };
   }
 
-  player.energy = Math.max(0, player.energy - cost);
+  if (power === "double_expansion") {
+    player.energy = 0;
+  } else {
+    player.energy = Math.max(0, player.energy - cost);
+  }
   player.usedPowers = [...(player.usedPowers || []), power];
   room.powerUsedThisTurn = true;
 
