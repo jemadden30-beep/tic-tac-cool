@@ -6,6 +6,18 @@ import { usePlayer } from "@/hooks/usePlayer";
 import { useSocket } from "@/hooks/useSocket";
 import { GameRoom } from "@/components/GameRoom";
 
+function rememberMatchCode(code: string) {
+  try {
+    const key = "ttc_match_codes";
+    const raw = localStorage.getItem(key);
+    const list: string[] = raw ? JSON.parse(raw) : [];
+    const next = [code.toUpperCase(), ...list.filter((c) => c !== code.toUpperCase())].slice(0, 40);
+    localStorage.setItem(key, JSON.stringify(next));
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function RoomPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const { playerId, name, ready } = usePlayer();
@@ -13,6 +25,7 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
 
   useEffect(() => {
     if (!ready || !api.connected) return;
+    rememberMatchCode(code);
     void api.syncRoom({ code, playerId, name });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, api.connected, code, playerId]);

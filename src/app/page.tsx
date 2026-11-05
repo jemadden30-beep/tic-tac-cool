@@ -1,11 +1,25 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { usePlayer } from "@/hooks/usePlayer";
 import { useSocket } from "@/hooks/useSocket";
 import { POWER_DEFS, POWER_ORDER } from "@/lib/powers";
-import type { BotDifficulty } from "@/lib/types";
+import type { BotDifficulty, MyMatchSummary } from "@/lib/types";
+
+const MATCHES_KEY = "ttc_match_codes";
+
+function rememberMatchCode(code: string) {
+  try {
+    const raw = localStorage.getItem(MATCHES_KEY);
+    const list: string[] = raw ? JSON.parse(raw) : [];
+    const next = [code.toUpperCase(), ...list.filter((c) => c !== code.toUpperCase())].slice(0, 40);
+    localStorage.setItem(MATCHES_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore */
+  }
+}
 
 const DIFFICULTIES: { id: BotDifficulty; label: string; blurb: string }[] = [
   { id: "easy", label: "Easy", blurb: "Mostly random — warm-up mode" },
@@ -17,11 +31,27 @@ const DIFFICULTIES: { id: BotDifficulty; label: string; blurb: string }[] = [
 export default function HomePage() {
   const router = useRouter();
   const { playerId, name, setName, stats, ready } = usePlayer();
-  const { connected, createRoom, joinRoom, error, clearError } = useSocket();
+  const { connected, createRoom, joinRoom, listMyMatches, error, clearError } = useSocket();
   const [joinCode, setJoinCode] = useState("");
   const [firstTo, setFirstTo] = useState(3);
   const [difficulty, setDifficulty] = useState<BotDifficulty>("medium");
   const [busy, setBusy] = useState(false);
+  const [matches, setMatches] = useState<MyMatchSummary[]>([]);
+  const [matchesLoading, setMatchesLoading] = useState(false);
+
+  const refreshMatches = useCallback(async () => {
+    if (!ready || !playerId || !connected) return;
+    setMatchesLoading(true);
+    const res = await listMyMatches(playerId);
+    setMatchesLoading(false);
+    if (res.ok && res.matches) setMatches(res.matches);
+  }, [ready, playerId, connected, listMyMatches]);
+
+  useEffect(() => {
+    void refreshMatches();
+    const id = window.setInterval(() => void refreshMatches(), 8000);
+    return () => window.clearInterval(id);
+  }, [refreshMatches]);
 
   async function create(mode: "online" | "hotseat" | "bot") {
     if (!ready) return;
@@ -35,7 +65,10 @@ export default function HomePage() {
       difficulty: mode === "bot" ? difficulty : undefined,
     });
     setBusy(false);
-    if (res.ok && res.room) router.push(`/room/${res.room.code}`);
+    if (res.ok && res.room) {
+      rememberMatchCode(res.room.code);
+      router.push(`/room/${res.room.code}`);
+    }
   }
 
   async function onJoin(e: FormEvent) {
@@ -49,7 +82,10 @@ export default function HomePage() {
       name,
     });
     setBusy(false);
-    if (res.ok && res.room) router.push(`/room/${res.room.code}`);
+    if (res.ok && res.room) {
+      rememberMatchCode(res.room.code);
+      router.push(`/room/${res.room.code}`);
+    }
   }
 
   return (
@@ -74,6 +110,77 @@ export default function HomePage() {
             {stats.losses} · Best streak {stats.bestStreak}
           </p>
         </header>
+
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-bold">Your matches</h2>
+              <p className="text-xs text-white/50">
+                Tap a match to resume — tied to this device via your player id.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void refreshMatches()}
+              disabled={!connected || matchesLoading}
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10 disabled:opacity-40"
+            >
+              {matchesLoading ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
+          {matches.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-center text-sm text-white/45">
+              No active matches yet. Create a room or join with a code — they’ll show up here.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {matches.map((m) => (
+                <li key={m.code}>
+                  <Link
+                    href={`/room/${m.code}`}
+                    className="block rounded-2xl border border-white/10 bg-black/25 p-3 transition hover:border-sky-400/50 hover:bg-sky-500/10 active:scale-[0.99]"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-lg font-black text-sky-300">{m.code}</span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                              m.yourTurn
+                                ? "bg-emerald-500/25 text-emerald-200"
+                                : m.phase === "playing"
+                                  ? "bg-amber-500/20 text-amber-100"
+                                  : "bg-white/10 text-white/60"
+                            }`}
+                          >
+                            {m.statusLabel}
+                          </span>
+                          <span className="text-[10px] uppercase text-white/40">
+                            {m.mode === "bot"
+                              ? `bot${m.difficulty ? ` · ${m.difficulty}` : ""}`
+                              : m.mode}
+                          </span>
+                        </div>
+                        <p className="mt-1 truncate text-sm text-white/75">
+                          vs <span className="font-semibold text-white">{m.opponentName}</span>
+                          {!m.opponentConnected && m.mode === "online" && m.opponentName !== "Waiting for opponent…" && (
+                            <span className="text-white/40"> (away)</span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl font-black tabular-nums text-white">
+                          {m.myWins}–{m.opponentWins}
+                        </div>
+                        <div className="text-[10px] text-white/45">first to {m.firstTo}</div>
+                      </div>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         <section className="rounded-3xl border border-sky-400/25 bg-gradient-to-br from-blue-600/20 to-indigo-900/30 p-5 backdrop-blur">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">

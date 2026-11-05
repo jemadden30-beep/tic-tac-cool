@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import type { RoomState, PublicRoom } from "./types";
+import type { RoomState, PublicRoom, MyMatchSummary } from "./types";
 import { createRoomState } from "./game";
 
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), "data");
@@ -166,4 +166,48 @@ export function setConnected(code: string, playerId: string, connected: boolean)
     p.connected = connected;
     saveRoom(room);
   }
+}
+
+
+export function listRoomsForPlayer(playerId: string): MyMatchSummary[] {
+  return Object.values(rooms)
+    .filter((r) => r.players.some((p) => p.id === playerId))
+    .map((r) => {
+      const me = r.players.find((p) => p.id === playerId)!;
+      const opp = r.players.find((p) => p.id !== playerId);
+      const yourTurn =
+        r.phase === "playing" &&
+        (r.mode === "hotseat" || me.mark === r.turn);
+      let statusLabel = "Lobby";
+      if (r.phase === "playing") {
+        statusLabel = yourTurn ? "Your turn" : "Their turn";
+      } else if (r.phase === "round_over") {
+        statusLabel = "Round over";
+      } else if (r.phase === "series_over") {
+        statusLabel = "Series over";
+      }
+      return {
+        code: r.code,
+        mode: r.mode,
+        phase: r.phase,
+        firstTo: r.firstTo,
+        myMark: me.mark,
+        myWins: me.wins,
+        opponentName:
+          opp?.name ||
+          (r.mode === "online" ? "Waiting for opponent…" : "—"),
+        opponentWins: opp?.wins ?? 0,
+        opponentConnected: opp?.connected ?? false,
+        turn: r.turn,
+        yourTurn,
+        statusLabel,
+        updatedAt: r.updatedAt,
+        difficulty: r.difficulty,
+      };
+    })
+    .sort((a, b) => {
+      // Your turn first, then recent
+      if (a.yourTurn !== b.yourTurn) return a.yourTurn ? -1 : 1;
+      return b.updatedAt - a.updatedAt;
+    });
 }

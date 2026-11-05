@@ -9,6 +9,7 @@ import {
   saveRoom,
   setConnected,
   listPublicRooms,
+  listRoomsForPlayer,
 } from "./src/lib/store";
 import { applyPlace, applyPower, startRound, resetSeriesForRematch } from "./src/lib/game";
 import { BOT_ID, chooseBotAction } from "./src/lib/bot";
@@ -117,6 +118,12 @@ app.prepare().then(() => {
 
     socket.on("rooms:list", (cb) => {
       cb?.({ rooms: listPublicRooms() });
+    });
+
+    socket.on("rooms:mine", (payload: { playerId: string }, cb) => {
+      const playerId = payload?.playerId || "";
+      if (!playerId) return cb?.({ ok: false, matches: [], error: "Missing player" });
+      cb?.({ ok: true, matches: listRoomsForPlayer(playerId) });
     });
 
     socket.on(

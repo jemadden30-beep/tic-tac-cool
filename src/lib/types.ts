@@ -119,3 +119,20 @@ export interface PublicRoom {
   playerCount: number;
   updatedAt: number;
 }
+
+export interface MyMatchSummary {
+  code: string;
+  mode: GameMode;
+  phase: RoomPhase;
+  firstTo: number;
+  myMark: Mark;
+  myWins: number;
+  opponentName: string;
+  opponentWins: number;
+  opponentConnected: boolean;
+  turn: Mark;
+  yourTurn: boolean;
+  statusLabel: string;
+  updatedAt: number;
+  difficulty: BotDifficulty | null;
+}
