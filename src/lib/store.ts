@@ -171,7 +171,7 @@ export function setConnected(code: string, playerId: string, connected: boolean)
 
 export function listRoomsForPlayer(playerId: string): MyMatchSummary[] {
   return Object.values(rooms)
-    .filter((r) => r.players.some((p) => p.id === playerId))
+    .filter((r) => r.mode === "online" && r.players.some((p) => p.id === playerId))
     .map((r) => {
       const me = r.players.find((p) => p.id === playerId)!;
       const opp = r.players.find((p) => p.id !== playerId);

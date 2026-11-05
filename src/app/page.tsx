@@ -116,7 +116,7 @@ export default function HomePage() {
             <div>
               <h2 className="text-lg font-bold">Your matches</h2>
               <p className="text-xs text-white/50">
-                Tap a match to resume — tied to this device via your player id.
+                Online rooms only — tap to resume. Tied to this device via your player id.
               </p>
             </div>
             <button
@@ -130,7 +130,7 @@ export default function HomePage() {
           </div>
           {matches.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-center text-sm text-white/45">
-              No active matches yet. Create a room or join with a code — they’ll show up here.
+              No active online matches yet. Create or join a room — bot games stay off this list.
             </p>
           ) : (
             <ul className="space-y-2">
