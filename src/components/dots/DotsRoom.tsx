@@ -137,30 +137,34 @@ export function DotsRoom({
         <div
           className={`rounded-2xl border p-3 ${
             room.turn === "X" && room.phase === "playing"
-              ? "border-sky-400/50 bg-sky-500/10"
-              : "border-white/10 bg-white/5"
+              ? "border-blue-400 bg-blue-500/20 shadow-[0_0_18px_rgba(59,130,246,0.35)]"
+              : "border-blue-500/30 bg-blue-500/10"
           }`}
         >
-          <div className="text-[10px] uppercase text-white/45">X · {x?.name || "—"}</div>
-          <div className="text-2xl font-black tabular-nums">
-            {x?.boxes ?? 0} <span className="text-sm font-semibold text-white/40">boxes</span>
+          <div className="text-[10px] font-bold uppercase tracking-wide text-blue-300">
+            P1 · Blue · {x?.name || "—"}
           </div>
-          <div className="text-xs text-white/50">
+          <div className="text-2xl font-black tabular-nums text-blue-100">
+            {x?.boxes ?? 0} <span className="text-sm font-semibold text-blue-200/50">boxes</span>
+          </div>
+          <div className="text-xs text-blue-100/60">
             Series {x?.wins ?? 0} · ⚡{x?.energy ?? 0}
           </div>
         </div>
         <div
           className={`rounded-2xl border p-3 ${
             room.turn === "O" && room.phase === "playing"
-              ? "border-indigo-400/50 bg-indigo-500/10"
-              : "border-white/10 bg-white/5"
+              ? "border-red-400 bg-red-500/20 shadow-[0_0_18px_rgba(239,68,68,0.35)]"
+              : "border-red-500/30 bg-red-500/10"
           }`}
         >
-          <div className="text-[10px] uppercase text-white/45">O · {o?.name || "Waiting…"}</div>
-          <div className="text-2xl font-black tabular-nums">
-            {o?.boxes ?? 0} <span className="text-sm font-semibold text-white/40">boxes</span>
+          <div className="text-[10px] font-bold uppercase tracking-wide text-red-300">
+            P2 · Red · {o?.name || "Waiting…"}
           </div>
-          <div className="text-xs text-white/50">
+          <div className="text-2xl font-black tabular-nums text-red-100">
+            {o?.boxes ?? 0} <span className="text-sm font-semibold text-red-200/50">boxes</span>
+          </div>
+          <div className="text-xs text-red-100/60">
             Series {o?.wins ?? 0} · ⚡{o?.energy ?? 0}
           </div>
         </div>

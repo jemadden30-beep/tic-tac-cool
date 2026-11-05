@@ -1,6 +1,7 @@
 "use client";
 
 import { BOXES, DOTS, type EdgeId, type DotsRoomState } from "@/lib/dots/types";
+import type { Mark } from "@/lib/types";
 import { hEdge, vEdge, boxIndex } from "@/lib/dots/game";
 
 type Props = {
@@ -15,6 +16,21 @@ type Props = {
 const CELL = 28;
 const PAD = 14;
 
+/** Player 1 (X) blue · Player 2 (O) red */
+const P1 = "#3b82f6";
+const P1_BOX = "rgba(59,130,246,0.38)";
+const P2 = "#ef4444";
+const P2_BOX = "rgba(239,68,68,0.38)";
+const GLOW_P1 = "#93c5fd";
+const GLOW_P2 = "#fca5a5";
+
+function edgeColor(owner: Mark | undefined, frozen: boolean | Mark | undefined) {
+  if (owner === "X") return P1;
+  if (owner === "O") return P2;
+  if (frozen) return "#67e8f9";
+  return "rgba(148,163,184,0.35)";
+}
+
 export function DotsBoard({
   room,
   interactive,
@@ -24,6 +40,8 @@ export function DotsBoard({
   onSelectBox,
 }: Props) {
   const size = PAD * 2 + CELL * (DOTS - 1);
+  const lastEdge = room.lastClaim?.edge ?? null;
+  const lastMark = room.lastClaim?.mark;
 
   function edgeClick(edge: EdgeId) {
     if (!interactive) return;
@@ -40,10 +58,82 @@ export function DotsBoard({
     onSelectBox?.(index);
   }
 
+  function renderEdgeLine(
+    edge: EdgeId,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    canHit: boolean
+  ) {
+    const owner = room.edges[edge] as Mark | undefined;
+    const frozen = room.frozenEdges[edge];
+    const isLast = lastEdge === edge && !!owner;
+    const color = edgeColor(owner, frozen);
+    const glow = lastMark === "O" ? GLOW_P2 : GLOW_P1;
+
+    return (
+      <g key={edge}>
+        <line
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke="transparent"
+          strokeWidth={14}
+          className={canHit ? "cursor-pointer" : undefined}
+          onClick={() => edgeClick(edge)}
+        />
+        {isLast && (
+          <line
+            x1={x1}
+            y1={y1}
+            x2={x2}
+            y2={y2}
+            stroke={glow}
+            strokeWidth={10}
+            strokeLinecap="round"
+            opacity={0.85}
+            style={{ filter: `drop-shadow(0 0 6px ${glow})` }}
+            pointerEvents="none"
+          >
+            <animate attributeName="opacity" values="0.55;1;0.55" dur="1.4s" repeatCount="indefinite" />
+          </line>
+        )}
+        <line
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke={color}
+          strokeWidth={isLast ? 5.5 : owner ? 4 : frozen ? 3 : 2}
+          strokeDasharray={frozen && !owner ? "4 3" : undefined}
+          strokeLinecap="round"
+          className={canHit ? "cursor-pointer" : undefined}
+          style={
+            isLast
+              ? { filter: `drop-shadow(0 0 4px ${glow}) drop-shadow(0 0 8px ${color})` }
+              : undefined
+          }
+          onClick={() => edgeClick(edge)}
+        />
+      </g>
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-[min(100%,420px)] overflow-hidden rounded-2xl border border-sky-400/20 bg-slate-950/60 p-2">
       <svg viewBox={`0 0 ${size} ${size}`} className="h-auto w-full touch-manipulation">
-        {/* boxes */}
+        <defs>
+          <filter id="last-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2.5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
         {Array.from({ length: BOXES }).map((_, br) =>
           Array.from({ length: BOXES }).map((__, bc) => {
             const idx = boxIndex(br, bc);
@@ -58,16 +148,10 @@ export function DotsBoard({
                 width={CELL}
                 height={CELL}
                 className={
-                  selectMode === "box" && interactive
-                    ? "cursor-pointer"
-                    : undefined
+                  selectMode === "box" && interactive ? "cursor-pointer" : undefined
                 }
                 fill={
-                  owner === "X"
-                    ? "rgba(56,189,248,0.35)"
-                    : owner === "O"
-                      ? "rgba(129,140,248,0.4)"
-                      : "transparent"
+                  owner === "X" ? P1_BOX : owner === "O" ? P2_BOX : "transparent"
                 }
                 stroke="transparent"
                 onClick={() => boxClick(idx)}
@@ -76,107 +160,34 @@ export function DotsBoard({
           })
         )}
 
-        {/* horizontal edges */}
         {Array.from({ length: DOTS }).map((_, r) =>
           Array.from({ length: BOXES }).map((__, c) => {
             const edge = hEdge(r, c);
             const owner = room.edges[edge];
-            const frozen = room.frozenEdges[edge];
+            const canHit =
+              interactive &&
+              ((selectMode === "claim" && !owner) || selectMode === "edge");
             const x1 = PAD + c * CELL;
             const x2 = PAD + (c + 1) * CELL;
             const y = PAD + r * CELL;
-            const canHit =
-              interactive &&
-              ((selectMode === "claim" && !owner) ||
-                (selectMode === "edge" && (owner || !owner)));
-            return (
-              <g key={edge}>
-                {/* hit area */}
-                <line
-                  x1={x1}
-                  y1={y}
-                  x2={x2}
-                  y2={y}
-                  stroke="transparent"
-                  strokeWidth={14}
-                  className={canHit ? "cursor-pointer" : undefined}
-                  onClick={() => edgeClick(edge)}
-                />
-                <line
-                  x1={x1}
-                  y1={y}
-                  x2={x2}
-                  y2={y}
-                  stroke={
-                    owner === "X"
-                      ? "#38bdf8"
-                      : owner === "O"
-                        ? "#a5b4fc"
-                        : frozen
-                          ? "#67e8f9"
-                          : "rgba(148,163,184,0.35)"
-                  }
-                  strokeWidth={owner ? 4 : frozen ? 3 : 2}
-                  strokeDasharray={frozen && !owner ? "4 3" : undefined}
-                  strokeLinecap="round"
-                  className={canHit ? "cursor-pointer" : undefined}
-                  onClick={() => edgeClick(edge)}
-                />
-              </g>
-            );
+            return renderEdgeLine(edge, x1, y, x2, y, !!canHit);
           })
         )}
 
-        {/* vertical edges */}
         {Array.from({ length: BOXES }).map((_, r) =>
           Array.from({ length: DOTS }).map((__, c) => {
             const edge = vEdge(r, c);
             const owner = room.edges[edge];
-            const frozen = room.frozenEdges[edge];
-            const x = PAD + c * CELL;
-            const y1 = PAD + r * CELL;
-            const y2 = PAD + (r + 1) * CELL;
             const canHit =
               interactive &&
               ((selectMode === "claim" && !owner) || selectMode === "edge");
-            return (
-              <g key={edge}>
-                <line
-                  x1={x}
-                  y1={y1}
-                  x2={x}
-                  y2={y2}
-                  stroke="transparent"
-                  strokeWidth={14}
-                  className={canHit ? "cursor-pointer" : undefined}
-                  onClick={() => edgeClick(edge)}
-                />
-                <line
-                  x1={x}
-                  y1={y1}
-                  x2={x}
-                  y2={y2}
-                  stroke={
-                    owner === "X"
-                      ? "#38bdf8"
-                      : owner === "O"
-                        ? "#a5b4fc"
-                        : frozen
-                          ? "#67e8f9"
-                          : "rgba(148,163,184,0.35)"
-                  }
-                  strokeWidth={owner ? 4 : frozen ? 3 : 2}
-                  strokeDasharray={frozen && !owner ? "4 3" : undefined}
-                  strokeLinecap="round"
-                  className={canHit ? "cursor-pointer" : undefined}
-                  onClick={() => edgeClick(edge)}
-                />
-              </g>
-            );
+            const x = PAD + c * CELL;
+            const y1 = PAD + r * CELL;
+            const y2 = PAD + (r + 1) * CELL;
+            return renderEdgeLine(edge, x, y1, x, y2, !!canHit);
           })
         )}
 
-        {/* dots */}
         {Array.from({ length: DOTS }).map((_, r) =>
           Array.from({ length: DOTS }).map((__, c) => (
             <circle
@@ -190,7 +201,10 @@ export function DotsBoard({
         )}
       </svg>
       <p className="mt-1 text-center text-[10px] text-white/40">
-        10×10 dots · tap a line to claim
+        <span className="font-semibold text-blue-400">P1 blue</span>
+        {" · "}
+        <span className="font-semibold text-red-400">P2 red</span>
+        {" · glow = last claim"}
         {selectMode === "edge" ? " · select an edge for power" : ""}
         {selectMode === "box" ? " · tap a filled box" : ""}
       </p>
