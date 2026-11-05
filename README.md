@@ -14,20 +14,34 @@ Power-up tic-tac-toe with online multiplayer, hotseat, chat, series scoring, and
 - **Alternate openings** — whoever was X last round becomes O next (and vice versa)
 - **Smooth Framer Motion** FX when powers fire
 
-## Power moves
 
-| Power | Effect |
-| --- | --- |
-| 🥾 Boot | Remove one opponent tile (you choose) |
-| ⚡ Lightning | Remove a random opponent tile |
-| 🌪️ Tornado | Shuffle all tiles on the board |
-| 🧹 Broom | Erase an entire row **or** column |
-| 📐 Expansion | Grow board to 4×4; win needs 4-in-a-row |
-| 🔄 Swap | Swap one of your tiles with an opponent tile |
-| 🛡️ Shield | Protect one of your tiles from removal until your next turn |
-| ✨ Double Place | Place two marks in one turn |
+## Energy & powers
 
-Each round every player is dealt **3 random powers**. Using a power does **not** end your turn — you still place a mark afterward (Double Place lets you place two).
+- Start each round at **50 ⚡** (max 100). Gain **+10 ⚡** at the start of your turn.
+- Every power costs energy and can be used **once per game (round)**.
+- Powers do **not** end your turn — place a mark afterward.
+- **Double Place** unlocks only on a **4×4** board.
+
+| Power | Cost | Effect |
+| --- | ---: | --- |
+| 🥾 Boot | 15 | Remove one opponent tile |
+| ⚡ Lightning | 20 | Remove a random opponent tile |
+| 🛡️ Shield | 20 | Protect one of your tiles until your next turn |
+| 🔄 Swap | 25 | Swap your tile with an opponent tile |
+| 🔒 Lock | 25 | Block an empty cell until your next turn begins again |
+| 🪞 Mirror | 25 | Flip the board left ↔ right |
+| 🧹 Broom | 30 | Erase a row or column |
+| ↔️ Column Switch | 30 | Shuffle column order |
+| ↕️ Row Switch | 30 | Shuffle row order |
+| 🔇 Silence | 30 | Opponent cannot use powers next turn |
+| ✨ Double Place | 35 | Place two marks (4×4 only) |
+| ⏪ Time Warp | 35 | Undo opponent’s last place |
+| ⬇️ Gravity | 35 | Marks fall toward a chosen edge |
+| 💣 Bomb | 35 | Clear a 2×2 block |
+| 🧬 Clone | 40 | Copy opponent mark onto an empty cell as yours |
+| 🌪️ Tornado | 40 | Shuffle all tiles |
+| 📐 Expansion | 45 | Grow board to 4×4 |
+
 
 ## Quick start
 

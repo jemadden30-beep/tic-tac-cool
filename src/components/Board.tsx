@@ -15,7 +15,7 @@ export function Board({
   room: RoomState;
   meMark: Mark | null;
   selectedPower: PowerId | null;
-  selectMode: "none" | "cell" | "line" | "pair";
+  selectMode: "none" | "cell" | "line" | "pair" | "edge";
   onCellClick: (index: number) => void;
   animation: AnimationEvent | null;
 }) {
@@ -36,6 +36,7 @@ export function Board({
         {room.board.map((cell, i) => {
           const shielded = room.players.some((p) => p.shieldIndex === i);
           const winning = room.winningLine?.includes(i);
+          const locked = room.lockedCell === i;
           return (
             <BoardCell
               key={`${size}-${i}`}
@@ -43,10 +44,17 @@ export function Board({
               index={i}
               size={size}
               shielded={shielded}
+              locked={locked}
               winning={!!winning}
               interactive={
                 room.phase === "playing" &&
-                (selectMode !== "none" || (isMyTurn && cell === null && !selectedPower))
+                (selectMode === "cell" ||
+                  selectMode === "pair" ||
+                  (selectMode === "none" &&
+                    isMyTurn &&
+                    cell === null &&
+                    !selectedPower &&
+                    !locked))
               }
               onClick={() => onCellClick(i)}
               animation={animation}
@@ -58,10 +66,16 @@ export function Board({
         <LinePicker
           size={size}
           onPick={(axis, index) => {
-            // encode as special cell click via negative protocol handled by parent
-            // parent listens separately — we pass through custom event
-            const ev = new CustomEvent("ttc-line", { detail: { axis, index } });
-            window.dispatchEvent(ev);
+            window.dispatchEvent(
+              new CustomEvent("ttc-line", { detail: { axis, index } })
+            );
+          }}
+        />
+      )}
+      {selectMode === "edge" && (
+        <EdgePicker
+          onPick={(edge) => {
+            window.dispatchEvent(new CustomEvent("ttc-edge", { detail: { edge } }));
           }}
         />
       )}
@@ -74,6 +88,7 @@ function BoardCell({
   index,
   size,
   shielded,
+  locked,
   winning,
   interactive,
   onClick,
@@ -83,6 +98,7 @@ function BoardCell({
   index: number;
   size: number;
   shielded: boolean;
+  locked: boolean;
   winning: boolean;
   interactive: boolean;
   onClick: () => void;
@@ -97,8 +113,9 @@ function BoardCell({
       disabled={!interactive}
       className={`relative aspect-square rounded-xl border text-2xl font-black transition sm:rounded-2xl sm:text-4xl
         ${winning ? "border-sky-300 bg-sky-400/25 shadow-[0_0_24px_rgba(56,189,248,0.55)]" : "border-white/10 bg-white/5"}
-        ${interactive ? "hover:border-sky-400/70 hover:bg-blue-500/10 cursor-pointer" : "cursor-default"}
+        ${interactive ? "hover:border-sky-400/70 hover:bg-blue-500/15 cursor-pointer" : "cursor-default"}
         ${shielded ? "ring-2 ring-sky-400/90" : ""}
+        ${locked ? "bg-slate-700/50 ring-2 ring-amber-400/70" : ""}
       `}
     >
       <CellFX animation={animation} index={index} />
@@ -107,6 +124,9 @@ function BoardCell({
         <span className="absolute right-1 top-1 text-sm" title="Shielded">
           🛡️
         </span>
+      )}
+      {locked && !cell && (
+        <span className="absolute inset-0 grid place-items-center text-base opacity-80">🔒</span>
       )}
       <span className="sr-only">
         cell {index + 1} of {size * size}
@@ -137,7 +157,7 @@ function LinePicker({
 }) {
   return (
     <div className="flex flex-wrap justify-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-3 text-sm">
-      <span className="w-full text-center text-emerald-200">Pick a row or column to sweep</span>
+      <span className="w-full text-center text-emerald-200">Pick a row or column</span>
       {Array.from({ length: size }, (_, i) => (
         <button
           key={`r${i}`}
@@ -156,6 +176,35 @@ function LinePicker({
           onClick={() => onPick("col", i)}
         >
           Col {i + 1}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function EdgePicker({
+  onPick,
+}: {
+  onPick: (edge: "up" | "down" | "left" | "right") => void;
+}) {
+  return (
+    <div className="flex flex-wrap justify-center gap-2 rounded-2xl border border-sky-400/30 bg-sky-500/10 p-3 text-sm">
+      <span className="w-full text-center text-sky-100">Gravity pulls toward…</span>
+      {(
+        [
+          ["up", "⬆️ Up"],
+          ["down", "⬇️ Down"],
+          ["left", "⬅️ Left"],
+          ["right", "➡️ Right"],
+        ] as const
+      ).map(([edge, label]) => (
+        <button
+          key={edge}
+          type="button"
+          className="rounded-lg bg-sky-500/30 px-3 py-1 font-semibold hover:bg-sky-400/50"
+          onClick={() => onPick(edge)}
+        >
+          {label}
         </button>
       ))}
     </div>

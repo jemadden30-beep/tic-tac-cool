@@ -9,12 +9,22 @@ export type PowerId =
   | "expansion"
   | "swap"
   | "shield"
-  | "double";
+  | "double"
+  | "column_switch"
+  | "row_switch"
+  | "mirror"
+  | "time_warp"
+  | "gravity"
+  | "bomb"
+  | "lock"
+  | "clone"
+  | "silence";
 
 export type PowerTarget =
   | { kind: "cell"; index: number }
   | { kind: "line"; axis: "row" | "col"; index: number }
   | { kind: "pair"; a: number; b: number }
+  | { kind: "edge"; edge: "up" | "down" | "left" | "right" }
   | { kind: "none" };
 
 export interface PowerDef {
@@ -22,22 +32,29 @@ export interface PowerDef {
   name: string;
   emoji: string;
   description: string;
-  needsTarget: "cell" | "line" | "pair" | "none";
+  cost: number;
+  needsTarget: "cell" | "line" | "pair" | "edge" | "none";
   targetOwn?: boolean;
   targetOpponent?: boolean;
+  targetEmpty?: boolean;
+  requiresExpanded?: boolean;
 }
 
 export interface PlayerState {
   id: string;
   name: string;
   mark: Mark;
+  /** @deprecated kept for older rooms; unused with energy system */
   powers: PowerId[];
+  energy: number;
+  usedPowers: PowerId[];
   wins: number;
   losses: number;
   streak: number;
   connected: boolean;
   shieldIndex: number | null;
   frozen: boolean;
+  silenced: boolean;
 }
 
 export interface ChatMessage {
@@ -81,10 +98,13 @@ export interface RoomState {
   createdAt: number;
   updatedAt: number;
   doublePending: boolean;
-  /** Increments each round in a series; used to alternate who is X */
   roundIndex: number;
-  /** True after a power is used until a mark is placed */
   powerUsedThisTurn: boolean;
+  /** Empty cell index locked until the locker finishes their next turn */
+  lockedCell: number | null;
+  lockedBy: Mark | null;
+  /** Last opponent place for Time Warp */
+  lastPlace: { mark: Mark; index: number } | null;
 }
 
 export interface PublicRoom {

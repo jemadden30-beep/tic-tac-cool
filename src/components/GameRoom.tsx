@@ -43,10 +43,10 @@ export function GameRoom({
     room.mode === "hotseat"
       ? room.turn
       : me?.mark ?? null;
-  const actingPowers =
+  const actingPlayer =
     room.mode === "hotseat"
-      ? room.players.find((p) => p.mark === room.turn)?.powers || []
-      : me?.powers || [];
+      ? room.players.find((p) => p.mark === room.turn) || null
+      : me || null;
 
   const [selectedPower, setSelectedPower] = useState<PowerId | null>(null);
   const [pairFirst, setPairFirst] = useState<number | null>(null);
@@ -72,6 +72,19 @@ export function GameRoom({
     };
     window.addEventListener("ttc-line", handler);
     return () => window.removeEventListener("ttc-line", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPower, room.code, playerId]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        edge: "up" | "down" | "left" | "right";
+      };
+      if (!selectedPower) return;
+      void firePower(selectedPower, { kind: "edge", edge: detail.edge });
+    };
+    window.addEventListener("ttc-edge", handler);
+    return () => window.removeEventListener("ttc-edge", handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPower, room.code, playerId]);
 
@@ -211,7 +224,13 @@ export function GameRoom({
                   Aim {POWER_DEFS[selectedPower].emoji}{" "}
                   {POWER_DEFS[selectedPower].name}
                   {selectMode === "pair" &&
-                    (pairFirst === null ? " — pick your tile" : " — pick opponent tile")}
+                    (selectedPower === "clone"
+                      ? pairFirst === null
+                        ? " — pick opponent tile"
+                        : " — pick empty cell"
+                      : pairFirst === null
+                        ? " — pick your tile"
+                        : " — pick opponent tile")}
                   {" · "}
                   <button
                     type="button"
@@ -297,11 +316,9 @@ export function GameRoom({
               <h3 className="mb-1 text-sm font-semibold uppercase tracking-wider text-white/50">
                 {isMyTurn ? "Your powers" : "Powers (wait for turn)"}
               </h3>
-              <p className="mb-2 text-[11px] text-sky-200/70">
-                Powers don’t end your turn — use one, then place a mark.
-              </p>
               <PowerPanel
-                powers={actingPowers}
+                room={room}
+                player={actingPlayer}
                 selected={selectedPower}
                 disabled={!isMyTurn}
                 onSelect={onSelectPower}

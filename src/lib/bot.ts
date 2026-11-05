@@ -5,6 +5,7 @@ import {
   playerByMark,
   winningLines,
 } from "./game";
+import { POWER_DEFS, powerAvailability, POWER_ORDER } from "./powers";
 import type {
   BotDifficulty,
   Cell,
@@ -20,8 +21,10 @@ export type BotAction =
   | { type: "place"; index: number }
   | { type: "power"; power: PowerId; target: PowerTarget };
 
-function empties(board: Cell[]): number[] {
-  return board.map((c, i) => (c === null ? i : -1)).filter((i) => i >= 0);
+function empties(board: Cell[], locked: number | null): number[] {
+  return board
+    .map((c, i) => (c === null && i !== locked ? i : -1))
+    .filter((i) => i >= 0);
 }
 
 function isProtected(room: RoomState, index: number): boolean {
@@ -35,8 +38,13 @@ function wouldWin(board: Cell[], size: 3 | 4, index: number, mark: Mark): boolea
   return !!checkWinner(next, size);
 }
 
-function findWinningMove(board: Cell[], size: 3 | 4, mark: Mark): number | null {
-  for (const i of empties(board)) {
+function findWinningMove(
+  board: Cell[],
+  size: 3 | 4,
+  mark: Mark,
+  locked: number | null
+): number | null {
+  for (const i of empties(board, locked)) {
     if (wouldWin(board, size, i, mark)) return i;
   }
   return null;
@@ -44,13 +52,6 @@ function findWinningMove(board: Cell[], size: 3 | 4, mark: Mark): number | null 
 
 function countMark(board: Cell[], line: number[], mark: Mark): number {
   return line.reduce((n, i) => n + (board[i] === mark ? 1 : 0), 0);
-}
-
-function lineOpen(board: Cell[], line: number[]): boolean {
-  return line.every((i) => board[i] !== null ? true : true) && !line.some((i) => {
-    const v = board[i];
-    return v !== null && line.some((j) => board[j] !== null && board[j] !== v && board[i] !== board[j]);
-  });
 }
 
 function heuristic(board: Cell[], size: 3 | 4, me: Mark): number {
@@ -70,10 +71,8 @@ function heuristic(board: Cell[], size: 3 | 4, me: Mark): number {
     else if (theirs === size - 2) score -= 22;
     else if (theirs > 0) score -= theirs * 3;
   }
-  // prefer center / near-center
   const center = size === 3 ? [4] : [5, 6, 9, 10];
   for (const c of center) if (board[c] === me) score += 4;
-  void lineOpen;
   return score;
 }
 
@@ -84,37 +83,43 @@ function minimax(
   turn: Mark,
   depth: number,
   alpha: number,
-  beta: number
+  beta: number,
+  locked: number | null
 ): number {
   const win = checkWinner(board, size);
   if (win) return win.winner === me ? 1000 - depth : -1000 + depth;
   if (boardFull(board) || depth <= 0) return heuristic(board, size, me);
-
-  const moves = empties(board);
+  const moves = empties(board, locked);
   if (turn === me) {
     let best = -Infinity;
     for (const m of moves) {
       const next = [...board];
       next[m] = turn;
-      best = Math.max(best, minimax(next, size, me, opponentOf(turn), depth - 1, alpha, beta));
+      best = Math.max(
+        best,
+        minimax(next, size, me, opponentOf(turn), depth - 1, alpha, beta, locked)
+      );
       alpha = Math.max(alpha, best);
       if (beta <= alpha) break;
     }
-    return best;
+    return best === -Infinity ? 0 : best;
   }
   let best = Infinity;
   for (const m of moves) {
     const next = [...board];
     next[m] = turn;
-    best = Math.min(best, minimax(next, size, me, opponentOf(turn), depth - 1, alpha, beta));
+    best = Math.min(
+      best,
+      minimax(next, size, me, opponentOf(turn), depth - 1, alpha, beta, locked)
+    );
     beta = Math.min(beta, best);
     if (beta <= alpha) break;
   }
-  return best;
+  return best === Infinity ? 0 : best;
 }
 
 function bestPlace(room: RoomState, me: Mark, depth: number): number {
-  const moves = empties(room.board);
+  const moves = empties(room.board, room.lockedCell);
   if (moves.length === 0) return 0;
   let bestMove = moves[0];
   let bestScore = -Infinity;
@@ -128,7 +133,8 @@ function bestPlace(room: RoomState, me: Mark, depth: number): number {
       opponentOf(me),
       depth,
       -Infinity,
-      Infinity
+      Infinity,
+      room.lockedCell
     );
     if (score > bestScore) {
       bestScore = score;
@@ -152,93 +158,20 @@ function ownCells(room: RoomState, me: Mark): number[] {
   return room.board.map((c, i) => (c === me ? i : -1)).filter((i) => i >= 0);
 }
 
-function maybePower(
-  room: RoomState,
-  me: Mark,
-  difficulty: BotDifficulty
-): BotAction | null {
-  const bot = playerByMark(room, me);
-  if (!bot || bot.powers.length === 0) return null;
-
-  const opp = opponentOf(me);
-  const oppTiles = opponentCells(room, opp);
-  const chance =
-    difficulty === "easy"
-      ? 0.12
-      : difficulty === "medium"
-        ? 0.28
-        : difficulty === "hard"
-          ? 0.45
-          : 0.62;
-
-  // Always consider defensive/offensive powers at higher diffs
-  const threat = findWinningMove(room.board, room.boardSize, opp);
-  if (threat !== null && (difficulty === "hard" || difficulty === "expert")) {
-    if (bot.powers.includes("boot") && oppTiles.includes(threat) === false) {
-      // threat is empty — can't boot it; try broom on that line
-    }
-    // If opponent is about to win by filling empty, boot isn't on empty.
-    // Remove an opponent piece on a hot line instead.
-    for (const power of ["boot", "lightning"] as PowerId[]) {
-      if (!bot.powers.includes(power) || oppTiles.length === 0) continue;
-      if (power === "boot") {
-        // prefer opponent tile on a line with many opp marks
-        let best = oppTiles[0];
-        let bestScore = -1;
-        for (const idx of oppTiles) {
-          let s = 0;
-          for (const line of winningLines(room.boardSize)) {
-            if (!line.includes(idx)) continue;
-            s += countMark(room.board, line, opp) * 10;
-          }
-          if (s > bestScore) {
-            bestScore = s;
-            best = idx;
-          }
-        }
-        return { type: "power", power: "boot", target: { kind: "cell", index: best } };
-      }
-      return { type: "power", power: "lightning", target: { kind: "none" } };
-    }
-  }
-
-  if (Math.random() > chance) return null;
-
-  const usable = [...bot.powers];
-  // Easy: only lightning / tornado / random boot
-  if (difficulty === "easy") {
-    const weak = usable.filter((p) =>
-      ["lightning", "tornado", "boot", "broom"].includes(p)
-    );
-    if (weak.length === 0) return null;
-    const power = pickRandom(weak);
-    return buildPowerAction(room, me, power);
-  }
-
-  // Prefer useful powers
-  const priority: PowerId[] =
-    difficulty === "expert"
-      ? ["boot", "lightning", "shield", "double", "broom", "swap", "expansion", "tornado"]
-      : difficulty === "hard"
-        ? ["boot", "shield", "lightning", "double", "broom", "swap", "tornado", "expansion"]
-        : ["lightning", "boot", "broom", "double", "shield", "tornado", "swap", "expansion"];
-
-  for (const power of priority) {
-    if (!usable.includes(power)) continue;
-    const action = buildPowerAction(room, me, power);
-    if (action) return action;
-  }
-  return null;
-}
-
 function buildPowerAction(
   room: RoomState,
   me: Mark,
   power: PowerId
 ): BotAction | null {
+  const bot = playerByMark(room, me);
+  if (!bot) return null;
+  if (!powerAvailability(room, bot, power).ok) return null;
+
   const opp = opponentOf(me);
   const oppTiles = opponentCells(room, opp);
   const myTiles = ownCells(room, me);
+  const empty = empties(room.board, room.lockedCell);
+  const size = room.boardSize;
 
   switch (power) {
     case "lightning":
@@ -246,15 +179,23 @@ function buildPowerAction(
       return { type: "power", power, target: { kind: "none" } };
     case "boot":
       if (oppTiles.length === 0) return null;
-      return {
-        type: "power",
-        power,
-        target: { kind: "cell", index: pickRandom(oppTiles) },
-      };
+      return { type: "power", power, target: { kind: "cell", index: pickRandom(oppTiles) } };
     case "tornado":
+    case "column_switch":
+    case "row_switch":
+    case "mirror":
+    case "silence":
+      return { type: "power", power, target: { kind: "none" } };
+    case "time_warp":
+      if (!room.lastPlace || room.lastPlace.mark !== opp) return null;
+      return { type: "power", power, target: { kind: "none" } };
+    case "expansion":
+      if (room.boardSize === 4) return null;
+      return { type: "power", power, target: { kind: "none" } };
+    case "double":
+      if (room.boardSize < 4 || empty.length < 2) return null;
       return { type: "power", power, target: { kind: "none" } };
     case "broom": {
-      const size = room.boardSize;
       let best: { axis: "row" | "col"; index: number; score: number } | null = null;
       for (const axis of ["row", "col"] as const) {
         for (let i = 0; i < size; i++) {
@@ -268,69 +209,125 @@ function buildPowerAction(
         }
       }
       if (!best || best.score <= 0) return null;
+      return { type: "power", power, target: { kind: "line", axis: best.axis, index: best.index } };
+    }
+    case "swap":
+      if (!myTiles.length || !oppTiles.length) return null;
       return {
         type: "power",
         power,
-        target: { kind: "line", axis: best.axis, index: best.index },
+        target: { kind: "pair", a: pickRandom(myTiles), b: pickRandom(oppTiles) },
       };
-    }
-    case "expansion":
-      if (room.boardSize === 4) return null;
-      return { type: "power", power, target: { kind: "none" } };
-    case "swap": {
-      if (myTiles.length === 0 || oppTiles.length === 0) return null;
-      return {
-        type: "power",
-        power,
-        target: {
-          kind: "pair",
-          a: pickRandom(myTiles),
-          b: pickRandom(oppTiles),
-        },
-      };
-    }
     case "shield":
-      if (myTiles.length === 0) return null;
+      if (!myTiles.length) return null;
+      return { type: "power", power, target: { kind: "cell", index: pickRandom(myTiles) } };
+    case "gravity":
       return {
         type: "power",
         power,
-        target: { kind: "cell", index: pickRandom(myTiles) },
+        target: { kind: "edge", edge: pickRandom(["down", "up", "left", "right"] as const) },
       };
-    case "double":
-      if (empties(room.board).length < 2) return null;
-      return { type: "power", power, target: { kind: "none" } };
+    case "bomb": {
+      const candidates: number[] = [];
+      for (let r = 0; r < size - 1; r++) {
+        for (let c = 0; c < size - 1; c++) candidates.push(r * size + c);
+      }
+      if (!candidates.length) return null;
+      return { type: "power", power, target: { kind: "cell", index: pickRandom(candidates) } };
+    }
+    case "lock":
+      if (!empty.length) return null;
+      return { type: "power", power, target: { kind: "cell", index: pickRandom(empty) } };
+    case "clone":
+      if (!oppTiles.length || !empty.length) return null;
+      return {
+        type: "power",
+        power,
+        target: { kind: "pair", a: pickRandom(oppTiles), b: pickRandom(empty) },
+      };
     default:
       return null;
   }
+}
+
+function maybePower(
+  room: RoomState,
+  me: Mark,
+  difficulty: BotDifficulty
+): BotAction | null {
+  const bot = playerByMark(room, me);
+  if (!bot || bot.silenced) return null;
+
+  const chance =
+    difficulty === "easy"
+      ? 0.1
+      : difficulty === "medium"
+        ? 0.25
+        : difficulty === "hard"
+          ? 0.4
+          : 0.55;
+
+  const opp = opponentOf(me);
+  const oppTiles = opponentCells(room, opp);
+
+  if ((difficulty === "hard" || difficulty === "expert") && oppTiles.length) {
+    for (const power of ["boot", "lightning", "time_warp"] as PowerId[]) {
+      const action = buildPowerAction(room, me, power);
+      if (action) return action;
+    }
+  }
+
+  if (Math.random() > chance) return null;
+
+  const cheapFirst: PowerId[] =
+    difficulty === "easy"
+      ? ["boot", "lightning", "shield", "mirror"]
+      : [
+          "boot",
+          "lightning",
+          "time_warp",
+          "shield",
+          "silence",
+          "broom",
+          "bomb",
+          "lock",
+          "clone",
+          "column_switch",
+          "row_switch",
+          "mirror",
+          "gravity",
+          "swap",
+          "double",
+          "tornado",
+          "expansion",
+        ];
+
+  for (const power of cheapFirst) {
+    if (!POWER_ORDER.includes(power)) continue;
+    // Prefer affordable
+    if ((bot.energy ?? 0) < POWER_DEFS[power].cost) continue;
+    const action = buildPowerAction(room, me, power);
+    if (action) return action;
+  }
+  return null;
 }
 
 export function chooseBotAction(room: RoomState): BotAction | null {
   if (room.phase !== "playing") return null;
   const difficulty = room.difficulty || "medium";
   const botPlayer = room.players.find((p) => p.id === BOT_ID);
-  if (!botPlayer) return null;
+  if (!botPlayer || room.turn !== botPlayer.mark) return null;
   const me = botPlayer.mark;
-  const bot = botPlayer;
-  if (room.turn !== me) return null;
-  if (bot.frozen) {
-    // server will clear on failed place — pick a place anyway
-  }
-
   const opp = opponentOf(me);
-  const moves = empties(room.board);
-  if (moves.length === 0 && bot.powers.length === 0) return null;
+  const moves = empties(room.board, room.lockedCell);
 
-  // Immediate win / block for medium+
   if (difficulty !== "easy") {
-    const winAt = findWinningMove(room.board, room.boardSize, me);
+    const winAt = findWinningMove(room.board, room.boardSize, me, room.lockedCell);
     if (winAt !== null) return { type: "place", index: winAt };
-    const blockAt = findWinningMove(room.board, room.boardSize, opp);
-    if (blockAt !== null) {
-      return { type: "place", index: blockAt };
-    }
+    const blockAt = findWinningMove(room.board, room.boardSize, opp, room.lockedCell);
+    if (blockAt !== null) return { type: "place", index: blockAt };
   }
 
-  // Power before place sometimes (at most one power, then must place)
   if (!room.doublePending && !room.powerUsedThisTurn) {
     const powerAct = maybePower(room, me, difficulty);
     if (powerAct) return powerAct;
@@ -338,12 +335,9 @@ export function chooseBotAction(room: RoomState): BotAction | null {
 
   if (moves.length === 0) return null;
 
-  if (difficulty === "easy") {
-    return { type: "place", index: pickRandom(moves) };
-  }
+  if (difficulty === "easy") return { type: "place", index: pickRandom(moves) };
 
   if (difficulty === "medium") {
-    // mild: 50% best-ish heuristic one-ply, else random among non-terrible
     if (Math.random() < 0.55) {
       let best = moves[0];
       let bestScore = -Infinity;

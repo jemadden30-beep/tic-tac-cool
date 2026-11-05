@@ -1,5 +1,11 @@
 import type { Cell, Mark, PowerId, PowerTarget, RoomState, PlayerState } from "./types";
-import { dealPowers } from "./powers";
+import {
+  ENERGY_MAX,
+  ENERGY_PER_TURN,
+  ENERGY_START,
+  POWER_DEFS,
+  powerAvailability,
+} from "./powers";
 
 export function emptyBoard(size: 3 | 4): Cell[] {
   return Array(size * size).fill(null);
@@ -7,7 +13,6 @@ export function emptyBoard(size: 3 | 4): Cell[] {
 
 export function winningLines(size: 3 | 4): number[][] {
   const lines: number[][] = [];
-  const need = size;
   for (let r = 0; r < size; r++) {
     const row: number[] = [];
     for (let c = 0; c < size; c++) row.push(r * size + c);
@@ -25,8 +30,6 @@ export function winningLines(size: 3 | 4): number[][] {
     diag2.push(i * size + (size - 1 - i));
   }
   lines.push(diag1, diag2);
-  // For 4x4 we only use full length lines (need === size)
-  void need;
   return lines;
 }
 
@@ -68,8 +71,36 @@ function isProtected(room: RoomState, index: number): boolean {
   return room.players.some((p) => p.shieldIndex === index);
 }
 
+function ensurePlayerEnergyFields(p: PlayerState) {
+  if (typeof p.energy !== "number") p.energy = ENERGY_START;
+  if (!Array.isArray(p.usedPowers)) p.usedPowers = [];
+  if (typeof p.silenced !== "boolean") p.silenced = false;
+}
+
+export function grantTurnEnergy(room: RoomState, mark: Mark) {
+  const p = playerByMark(room, mark);
+  if (!p) return;
+  ensurePlayerEnergyFields(p);
+  p.energy = Math.min(ENERGY_MAX, p.energy + ENERGY_PER_TURN);
+  // Silence lasts one opponent turn — clear when their turn begins
+  p.silenced = false;
+}
+
+function advanceTurn(room: RoomState) {
+  room.turn = opponentOf(room.turn);
+  // Clear lock if the locker just finished (lock lasts until locker completes a turn)
+  // Lock blocks opponent; we clear when the locked-by player's turn comes around again
+  // Simpler: clear lock when the player who placed the lock starts their NEXT turn after locking
+  // For v1: clear lock when turn advances TO the locker (they've finished one full cycle)
+  const locker = room.lockedBy;
+  if (locker && room.turn === locker) {
+    room.lockedCell = null;
+    room.lockedBy = null;
+  }
+  grantTurnEnergy(room, room.turn);
+}
+
 export function startRound(room: RoomState) {
-  // Alternate who is X each round: X always opens, marks swap after round 0
   if (typeof room.roundIndex !== "number") room.roundIndex = 0;
   if (room.roundIndex > 0 && room.players.length >= 2) {
     const a = room.players[0];
@@ -89,11 +120,19 @@ export function startRound(room: RoomState) {
   room.doublePending = false;
   room.powerUsedThisTurn = false;
   room.lastAnimation = null;
+  room.lockedCell = null;
+  room.lockedBy = null;
+  room.lastPlace = null;
   for (const p of room.players) {
-    p.powers = dealPowers(3);
+    p.powers = [];
+    p.energy = ENERGY_START;
+    p.usedPowers = [];
     p.shieldIndex = null;
     p.frozen = false;
+    p.silenced = false;
   }
+  // Opening player gains turn energy
+  grantTurnEnergy(room, "X");
   room.roundIndex += 1;
   room.updatedAt = Date.now();
 }
@@ -108,7 +147,7 @@ export function applyPlace(
   if (!player) return { ok: false, error: "Unknown player" };
 
   if (room.mode === "hotseat") {
-    // In hotseat, either seated player can act for current mark if local
+    // ok
   } else if (player.mark !== room.turn) {
     return { ok: false, error: "Not your turn" };
   }
@@ -118,20 +157,25 @@ export function applyPlace(
   if (room.mode === "online" && acting.id !== playerId) {
     return { ok: false, error: "Not your turn" };
   }
+  if (room.mode === "bot" && acting.id !== playerId) {
+    return { ok: false, error: "Not your turn" };
+  }
   if (acting.frozen) {
     acting.frozen = false;
-    room.turn = opponentOf(room.turn);
+    advanceTurn(room);
     room.updatedAt = Date.now();
     return { ok: false, error: "You were frozen — turn skipped" };
   }
 
   if (index < 0 || index >= room.board.length) return { ok: false, error: "Bad cell" };
   if (room.board[index] !== null) return { ok: false, error: "Occupied" };
+  if (room.lockedCell === index) return { ok: false, error: "Cell is locked" };
 
   clearShieldsOnTurnStart(room, room.turn);
   room.powerUsedThisTurn = false;
   room.lastAnimation = null;
   room.board[index] = room.turn;
+  room.lastPlace = { mark: room.turn, index };
 
   const result = checkWinner(room.board, room.boardSize);
   if (result) {
@@ -139,7 +183,6 @@ export function applyPlace(
     return { ok: true };
   }
   if (boardFull(room.board)) {
-    // draw — no score change, next round
     room.phase = "round_over";
     room.winner = null;
     room.winningLine = null;
@@ -149,9 +192,8 @@ export function applyPlace(
 
   if (room.doublePending) {
     room.doublePending = false;
-    // same turn continues
   } else {
-    room.turn = opponentOf(room.turn);
+    advanceTurn(room);
   }
   room.updatedAt = Date.now();
   return { ok: true };
@@ -178,6 +220,26 @@ function finishRound(room: RoomState, winner: Mark, line: number[]) {
   room.updatedAt = Date.now();
 }
 
+function shuffleInPlace<T>(arr: T[]) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+function remapShields(room: RoomState, map: Map<number, number>) {
+  for (const p of room.players) {
+    if (p.shieldIndex !== null && map.has(p.shieldIndex)) {
+      p.shieldIndex = map.get(p.shieldIndex)!;
+    } else if (p.shieldIndex !== null) {
+      p.shieldIndex = null;
+    }
+  }
+  if (room.lockedCell !== null && map.has(room.lockedCell)) {
+    room.lockedCell = map.get(room.lockedCell)!;
+  }
+}
+
 export function applyPower(
   room: RoomState,
   playerId: string,
@@ -188,13 +250,7 @@ export function applyPower(
   const player = playerById(room, playerId);
   if (!player) return { ok: false, error: "Unknown player" };
 
-  if (room.mode === "online" && player.mark !== room.turn) {
-    return { ok: false, error: "Not your turn" };
-  }
   if (room.mode === "hotseat") {
-    const acting = playerByMark(room, room.turn);
-    if (!acting) return { ok: false, error: "No player" };
-    // hotseat: use current turn's powers from the player who owns that mark
     const hot = room.players.find((p) => p.mark === room.turn);
     if (!hot) return { ok: false, error: "No player" };
     return applyPowerAs(room, hot, power, target);
@@ -209,11 +265,14 @@ function applyPowerAs(
   target: PowerTarget
 ): { ok: true } | { ok: false; error: string } {
   if (player.mark !== room.turn) return { ok: false, error: "Not your turn" };
-  const idx = player.powers.indexOf(power);
-  if (idx === -1) return { ok: false, error: "You don't have that power" };
+  ensurePlayerEnergyFields(player);
+
+  const avail = powerAvailability(room, player, power);
+  if (!avail.ok) return { ok: false, error: avail.reason || "Unavailable" };
+
   if (player.frozen) {
     player.frozen = false;
-    room.turn = opponentOf(room.turn);
+    advanceTurn(room);
     room.updatedAt = Date.now();
     return { ok: false, error: "You were frozen — turn skipped" };
   }
@@ -221,8 +280,8 @@ function applyPowerAs(
   clearShieldsOnTurnStart(room, player.mark);
   const opp = opponentOf(player.mark);
   let meta: Record<string, unknown> = {};
-  let consumeTurn = false; // powers never end the turn — place still follows
-  let keepPower = false;
+  const size = room.boardSize;
+  const cost = POWER_DEFS[power].cost;
 
   switch (power) {
     case "boot": {
@@ -245,19 +304,16 @@ function applyPowerAs(
     }
     case "tornado": {
       const values = [...room.board];
-      for (let i = values.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [values[i], values[j]] = [values[j], values[i]];
-      }
-      // Move shields with tiles? Clear shields for simplicity after shuffle
+      shuffleInPlace(values);
       room.players.forEach((p) => (p.shieldIndex = null));
       room.board = values;
+      room.lockedCell = null;
+      room.lockedBy = null;
       meta = { board: values };
       break;
     }
     case "broom": {
       if (target.kind !== "line") return { ok: false, error: "Pick a row or column" };
-      const size = room.boardSize;
       const cleared: number[] = [];
       if (target.axis === "row") {
         for (let c = 0; c < size; c++) {
@@ -285,7 +341,6 @@ function applyPowerAs(
     case "expansion": {
       if (room.boardSize === 4) return { ok: false, error: "Already 4×4" };
       const next = emptyBoard(4);
-      // center the 3x3 into 4x4 top-left
       for (let r = 0; r < 3; r++) {
         for (let c = 0; c < 3; c++) {
           next[r * 4 + c] = room.board[r * 3 + c];
@@ -301,6 +356,12 @@ function applyPowerAs(
           p.shieldIndex = r * 4 + c;
         }
       });
+      if (room.lockedCell !== null) {
+        const old = room.lockedCell;
+        const r = Math.floor(old / 3);
+        const c = old % 3;
+        room.lockedCell = r * 4 + c;
+      }
       meta = { size: 4 };
       break;
     }
@@ -323,9 +384,161 @@ function applyPowerAs(
       break;
     }
     case "double": {
+      if (room.boardSize < 4) return { ok: false, error: "Need 4×4 board" };
       room.doublePending = true;
-      consumeTurn = false;
-      keepPower = false;
+      meta = {};
+      break;
+    }
+    case "column_switch": {
+      const order = Array.from({ length: size }, (_, i) => i);
+      shuffleInPlace(order);
+      const next = emptyBoard(size);
+      const map = new Map<number, number>();
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          const from = r * size + c;
+          const to = r * size + order[c];
+          next[to] = room.board[from];
+          map.set(from, to);
+        }
+      }
+      room.board = next;
+      remapShields(room, map);
+      meta = { order, axis: "col" };
+      break;
+    }
+    case "row_switch": {
+      const order = Array.from({ length: size }, (_, i) => i);
+      shuffleInPlace(order);
+      const next = emptyBoard(size);
+      const map = new Map<number, number>();
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          const from = r * size + c;
+          const to = order[r] * size + c;
+          next[to] = room.board[from];
+          map.set(from, to);
+        }
+      }
+      room.board = next;
+      remapShields(room, map);
+      meta = { order, axis: "row" };
+      break;
+    }
+    case "mirror": {
+      const next = emptyBoard(size);
+      const map = new Map<number, number>();
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          const from = r * size + c;
+          const to = r * size + (size - 1 - c);
+          next[to] = room.board[from];
+          map.set(from, to);
+        }
+      }
+      room.board = next;
+      remapShields(room, map);
+      meta = { flipped: true };
+      break;
+    }
+    case "time_warp": {
+      const last = room.lastPlace;
+      if (!last || last.mark !== opp) {
+        return { ok: false, error: "No opponent place to undo" };
+      }
+      if (room.board[last.index] !== opp) {
+        return { ok: false, error: "That tile is gone" };
+      }
+      if (isProtected(room, last.index)) return { ok: false, error: "Shielded!" };
+      room.board[last.index] = null;
+      meta = { index: last.index };
+      room.lastPlace = null;
+      break;
+    }
+    case "gravity": {
+      if (target.kind !== "edge") return { ok: false, error: "Pick an edge" };
+      const next = emptyBoard(size);
+      const edge = target.edge;
+      if (edge === "down" || edge === "up") {
+        for (let c = 0; c < size; c++) {
+          const col: Cell[] = [];
+          for (let r = 0; r < size; r++) col.push(room.board[r * size + c]);
+          const filled = col.filter((x) => x !== null);
+          const emptyCount = size - filled.length;
+          const rebuilt: Cell[] =
+            edge === "down"
+              ? [...Array(emptyCount).fill(null), ...filled]
+              : [...filled, ...Array(emptyCount).fill(null)];
+          for (let r = 0; r < size; r++) next[r * size + c] = rebuilt[r];
+        }
+      } else {
+        for (let r = 0; r < size; r++) {
+          const row: Cell[] = [];
+          for (let c = 0; c < size; c++) row.push(room.board[r * size + c]);
+          const filled = row.filter((x) => x !== null);
+          const emptyCount = size - filled.length;
+          const rebuilt: Cell[] =
+            edge === "right"
+              ? [...Array(emptyCount).fill(null), ...filled]
+              : [...filled, ...Array(emptyCount).fill(null)];
+          for (let c = 0; c < size; c++) next[r * size + c] = rebuilt[c];
+        }
+      }
+      room.board = next;
+      room.players.forEach((p) => (p.shieldIndex = null));
+      room.lockedCell = null;
+      room.lockedBy = null;
+      meta = { edge };
+      break;
+    }
+    case "bomb": {
+      if (target.kind !== "cell") return { ok: false, error: "Pick top-left of 2×2" };
+      const tl = target.index;
+      const r0 = Math.floor(tl / size);
+      const c0 = tl % size;
+      if (r0 > size - 2 || c0 > size - 2) {
+        return { ok: false, error: "2×2 must fit on the board" };
+      }
+      const cleared: number[] = [];
+      for (const [dr, dc] of [
+        [0, 0],
+        [0, 1],
+        [1, 0],
+        [1, 1],
+      ] as const) {
+        const i = (r0 + dr) * size + (c0 + dc);
+        if (!isProtected(room, i)) {
+          room.board[i] = null;
+          cleared.push(i);
+        }
+      }
+      room.players.forEach((p) => {
+        if (p.shieldIndex !== null && cleared.includes(p.shieldIndex)) p.shieldIndex = null;
+      });
+      meta = { cleared, index: tl };
+      break;
+    }
+    case "lock": {
+      if (target.kind !== "cell") return { ok: false, error: "Pick empty cell" };
+      if (room.board[target.index] !== null) return { ok: false, error: "Must be empty" };
+      room.lockedCell = target.index;
+      room.lockedBy = player.mark;
+      meta = { index: target.index };
+      break;
+    }
+    case "clone": {
+      if (target.kind !== "pair") return { ok: false, error: "Pick opponent tile, then empty" };
+      const { a, b } = target;
+      if (room.board[a] !== opp) return { ok: false, error: "First must be opponent" };
+      if (room.board[b] !== null) return { ok: false, error: "Second must be empty" };
+      if (room.lockedCell === b) return { ok: false, error: "Cell is locked" };
+      room.board[b] = player.mark;
+      meta = { a, b };
+      break;
+    }
+    case "silence": {
+      const victim = playerByMark(room, opp);
+      if (victim) victim.silenced = true;
       meta = {};
       break;
     }
@@ -333,7 +546,8 @@ function applyPowerAs(
       return { ok: false, error: "Unknown power" };
   }
 
-  if (!keepPower) player.powers.splice(idx, 1);
+  player.energy = Math.max(0, player.energy - cost);
+  player.usedPowers = [...(player.usedPowers || []), power];
   room.powerUsedThisTurn = true;
 
   room.lastAnimation = {
@@ -344,18 +558,36 @@ function applyPowerAs(
     meta,
   };
 
-  // Win check after board-changing powers
   const result = checkWinner(room.board, room.boardSize);
   if (result) {
     finishRound(room, result.winner, result.line);
     return { ok: true };
   }
 
-  if (consumeTurn) {
-    room.turn = opponentOf(room.turn);
-  }
   room.updatedAt = Date.now();
   return { ok: true };
+}
+
+function blankPlayer(
+  id: string,
+  name: string,
+  mark: Mark
+): PlayerState {
+  return {
+    id,
+    name,
+    mark,
+    powers: [],
+    energy: ENERGY_START,
+    usedPowers: [],
+    wins: 0,
+    losses: 0,
+    streak: 0,
+    connected: true,
+    shieldIndex: null,
+    frozen: false,
+    silenced: false,
+  };
 }
 
 export function createRoomState(opts: {
@@ -366,18 +598,7 @@ export function createRoomState(opts: {
   firstTo: number;
   difficulty?: "easy" | "medium" | "hard" | "expert";
 }): RoomState {
-  const host: PlayerState = {
-    id: opts.hostId,
-    name: opts.hostName,
-    mark: "X",
-    powers: [],
-    wins: 0,
-    losses: 0,
-    streak: 0,
-    connected: true,
-    shieldIndex: null,
-    frozen: false,
-  };
+  const host = blankPlayer(opts.hostId, opts.hostName, "X");
 
   const room: RoomState = {
     code: opts.code,
@@ -401,21 +622,13 @@ export function createRoomState(opts: {
     doublePending: false,
     powerUsedThisTurn: false,
     roundIndex: 0,
+    lockedCell: null,
+    lockedBy: null,
+    lastPlace: null,
   };
 
   if (opts.mode === "hotseat") {
-    room.players.push({
-      id: `${opts.hostId}-o`,
-      name: "Player O",
-      mark: "O",
-      powers: [],
-      wins: 0,
-      losses: 0,
-      streak: 0,
-      connected: true,
-      shieldIndex: null,
-      frozen: false,
-    });
+    room.players.push(blankPlayer(`${opts.hostId}-o`, "Player O", "O"));
   }
 
   if (opts.mode === "bot") {
@@ -426,27 +639,14 @@ export function createRoomState(opts: {
       expert: "Bot (Expert)",
     };
     const diff = opts.difficulty || "medium";
-    room.players.push({
-      id: "ttc-bot",
-      name: labels[diff] || "Bot",
-      mark: "O",
-      powers: [],
-      wins: 0,
-      losses: 0,
-      streak: 0,
-      connected: true,
-      shieldIndex: null,
-      frozen: false,
-    });
+    room.players.push(blankPlayer("ttc-bot", labels[diff] || "Bot", "O"));
   }
 
   return room;
 }
 
-
 export function resetSeriesForRematch(room: RoomState) {
   room.roundIndex = 0;
-  // Host / first seat is X again
   if (room.players[0]) room.players[0].mark = "X";
   if (room.players[1]) room.players[1].mark = "O";
 }

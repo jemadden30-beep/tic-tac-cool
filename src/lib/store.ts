@@ -64,6 +64,16 @@ export function getRoom(code: string): RoomState | undefined {
   if (room && typeof room.powerUsedThisTurn !== "boolean") {
     room.powerUsedThisTurn = false;
   }
+  if (room) {
+    if (room.lockedCell === undefined) room.lockedCell = null;
+    if (room.lockedBy === undefined) room.lockedBy = null;
+    if (room.lastPlace === undefined) room.lastPlace = null;
+    for (const pl of room.players) {
+      if (typeof pl.energy !== "number") pl.energy = 50;
+      if (!Array.isArray(pl.usedPowers)) pl.usedPowers = [];
+      if (typeof pl.silenced !== "boolean") pl.silenced = false;
+    }
+  }
   return room;
 }
 
@@ -155,12 +165,15 @@ export function joinRoom(
     name,
     mark: "O",
     powers: [],
+    energy: 50,
+    usedPowers: [],
     wins: 0,
     losses: 0,
     streak: 0,
     connected: true,
     shieldIndex: null,
     frozen: false,
+    silenced: false,
   });
   saveRoom(room);
   return { ok: true, room };

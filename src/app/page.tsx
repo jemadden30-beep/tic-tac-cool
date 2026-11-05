@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePlayer } from "@/hooks/usePlayer";
 import { useSocket } from "@/hooks/useSocket";
-import { POWER_DEFS, ALL_POWERS } from "@/lib/powers";
+import { POWER_DEFS, POWER_ORDER } from "@/lib/powers";
 import type { BotDifficulty } from "@/lib/types";
 
 const DIFFICULTIES: { id: BotDifficulty; label: string; blurb: string }[] = [
@@ -185,12 +185,15 @@ export default function HomePage() {
         <section className="rounded-3xl border border-white/10 bg-black/25 p-5">
           <h2 className="mb-4 text-lg font-bold">Power moves</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {ALL_POWERS.map((id) => {
+            {POWER_ORDER.map((id) => {
               const p = POWER_DEFS[id];
               return (
                 <div key={id} className="rounded-2xl border border-white/10 bg-white/5 p-3">
                   <div className="text-2xl">{p.emoji}</div>
-                  <div className="font-bold">{p.name}</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-bold">{p.name}</div>
+                    <span className="text-[10px] font-bold text-sky-300">⚡{p.cost}</span>
+                  </div>
                   <p className="text-xs text-white/55">{p.description}</p>
                 </div>
               );
