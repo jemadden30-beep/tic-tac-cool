@@ -171,6 +171,7 @@ export function applyPlace(
   playerId: string,
   index: number
 ): { ok: true } | { ok: false; error: string } {
+  // Async OK: opponent does not need to be connected — only the acting seat matters
   if (room.phase !== "playing") return { ok: false, error: "Not playing" };
   const player = playerById(room, playerId);
   if (!player) return { ok: false, error: "Unknown player" };
@@ -275,6 +276,7 @@ export function applyPower(
   power: PowerId,
   target: PowerTarget
 ): { ok: true } | { ok: false; error: string } {
+  // Async OK: opponent presence is not required to use powers on your turn
   if (room.phase !== "playing") return { ok: false, error: "Not playing" };
   const player = playerById(room, playerId);
   if (!player) return { ok: false, error: "Unknown player" };

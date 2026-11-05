@@ -74,6 +74,13 @@ npm start
 3. You are **X**; the bot is **O**. Series score and streaks work the same as multiplayer.
 4. System chat lines note when the bot fires a power (animations still play).
 
+## Async online play
+
+Online rooms are **turn-based async**. Only one player needs to be connected to take their turn.
+Leave anytime — reopen the same `/room/CODE` link on the **same browser/device** to resume
+exactly where you left off (board, energy, used powers, whose turn, series score, chat).
+Opponent presence is never required for moves.
+
 ## Invite flow
 
 1. Create an **online** room on the home page (set first-to-N).

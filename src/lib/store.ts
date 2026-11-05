@@ -91,7 +91,7 @@ export function listPublicRooms(): PublicRoom[] {
       phase: r.phase,
       mode: r.mode,
       firstTo: r.firstTo,
-      playerCount: r.players.filter((p) => p.connected).length,
+      playerCount: r.players.filter((p) => p.id !== "ttc-bot").length,
       updatedAt: r.updatedAt,
     }))
     .sort((a, b) => b.updatedAt - a.updatedAt)
@@ -106,6 +106,7 @@ export function joinRoom(
   const room = getRoom(code);
   if (!room) return { ok: false, error: "Room not found" };
 
+  // Async multiplayer: same playerId always resumes their seat (board/energy/turn intact)
   const existing = room.players.find((p) => p.id === playerId);
   if (existing) {
     existing.connected = true;
@@ -115,68 +116,45 @@ export function joinRoom(
   }
 
   if (room.mode === "bot") {
-    // Only the human host may rejoin; never replace the bot seat
-    if (room.hostId === playerId) {
-      const host = room.players.find((p) => p.mark === "X");
-      if (host) {
-        host.id = playerId;
-        host.name = name || host.name;
-        host.connected = true;
-        saveRoom(room);
-        return { ok: true, room };
-      }
-    }
     return { ok: false, error: "Solo bot game — create your own" };
   }
 
   if (room.mode === "hotseat") {
-    // Spectator/controller joins as host seat
-    const host = room.players[0];
-    if (host && host.id !== playerId) {
-      // Allow second device to take O if reclaiming
+    // One controller device; reopen with the same saved player id
+    if (room.players.length >= 1) {
+      return {
+        ok: false,
+        error: "Hotseat is tied to the original device. Use the same browser to resume.",
+      };
     }
   }
 
-  const openSeat = room.players.find(
-    (p) => p.mark === "O" && !p.connected && p.id !== "ttc-bot"
-  );
-  if (openSeat) {
-    openSeat.id = playerId;
-    openSeat.name = name;
-    openSeat.connected = true;
+  // First-time O seat (lobby only) — never steal a seat after someone claimed it
+  if (room.mode === "online" && room.players.length < 2) {
+    room.players.push({
+      id: playerId,
+      name,
+      mark: "O",
+      powers: [],
+      energy: 50,
+      usedPowers: [],
+      wins: 0,
+      losses: 0,
+      streak: 0,
+      connected: true,
+      shieldIndex: null,
+      frozen: false,
+      silenced: false,
+    });
     saveRoom(room);
     return { ok: true, room };
   }
 
-  if (room.players.length >= 2) {
-    // resume by name match soft — never overwrite bot
-    const byName = room.players.find((p) => p.name === name && p.id !== "ttc-bot");
-    if (byName) {
-      byName.id = playerId;
-      byName.connected = true;
-      saveRoom(room);
-      return { ok: true, room };
-    }
-    return { ok: false, error: "Room is full" };
-  }
-
-  room.players.push({
-    id: playerId,
-    name,
-    mark: "O",
-    powers: [],
-    energy: 50,
-    usedPowers: [],
-    wins: 0,
-    losses: 0,
-    streak: 0,
-    connected: true,
-    shieldIndex: null,
-    frozen: false,
-    silenced: false,
-  });
-  saveRoom(room);
-  return { ok: true, room };
+  return {
+    ok: false,
+    error:
+      "Room is full. Reopen this invite on the same device/browser you used before to pick up where you left off.",
+  };
 }
 
 export function setConnected(code: string, playerId: string, connected: boolean) {
@@ -184,6 +162,7 @@ export function setConnected(code: string, playerId: string, connected: boolean)
   if (!room) return;
   const p = room.players.find((x) => x.id === playerId);
   if (p) {
+    // Presence only — never pause turns or clear game state when someone goes away
     p.connected = connected;
     saveRoom(room);
   }

@@ -370,7 +370,8 @@ export function GameRoom({
                 <p className="mt-1 font-mono text-lg text-sky-300">{room.code}</p>
                 <p className="mt-2 break-all">{inviteUrl}</p>
                 <p className="mt-2">
-                  Leave anytime — reopen this link to resume. Stats persist in the room.
+                  Async play: you don’t both need to be online. Take your turn anytime —
+                  reopen this link on the same device to resume board, energy, powers, and score.
                 </p>
               </>
             )}
@@ -388,9 +389,17 @@ function StatusBanner({ room, meId }: { room: RoomState; meId: string }) {
   const opener = room.players.find((p) => p.mark === "X");
   const mine =
     room.mode === "hotseat" || room.players.find((p) => p.id === meId)?.mark === room.turn;
+  const opp = room.players.find((p) => p.id !== meId);
+  const awayNote =
+    room.mode === "online" && opp && !opp.connected
+      ? mine
+        ? " · opponent away — play anytime"
+        : " · away (will resume here)"
+      : "";
   return (
     <span className={mine ? "font-bold text-emerald-300" : "text-white/70"}>
       {mine ? "Your turn" : `Waiting on ${turnPlayer?.name || room.turn}`} · {room.turn}
+      {awayNote}
       {opener ? ` · ${opener.name} opened` : ""}
       {turnPlayer?.frozen ? " (frozen next)" : ""}
     </span>
