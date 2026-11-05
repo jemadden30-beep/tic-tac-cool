@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import type { RoomState, ChatMessage, AnimationEvent, PowerId, PowerTarget, MyMatchSummary } from "@/lib/types";
+import type { DotsMatchSummary } from "@/lib/dots/types";
 
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
@@ -157,7 +158,7 @@ export function useSocket() {
 
   const listMyMatches = useCallback(
     async (playerId: string) => {
-      return emit<{ ok: boolean; matches?: MyMatchSummary[]; error?: string }>(
+      return emit<{ ok: boolean; matches?: (MyMatchSummary | DotsMatchSummary)[]; error?: string }>(
         "rooms:mine",
         { playerId }
       );

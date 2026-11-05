@@ -35,7 +35,14 @@ function makeCode(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
   for (let i = 0; i < 6; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
-  if (rooms[code]) return makeCode();
+  let dotsTaken = false;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    dotsTaken = require("./dots/store").dotsCodeTaken(code);
+  } catch {
+    dotsTaken = false;
+  }
+  if (rooms[code] || dotsTaken) return makeCode();
   return code;
 }
 
@@ -51,6 +58,10 @@ export function createRoom(opts: {
   rooms[code] = room;
   persist();
   return room;
+}
+
+export function tttCodeTaken(code: string): boolean {
+  return Boolean(rooms[code.toUpperCase()]);
 }
 
 export function getRoom(code: string): RoomState | undefined {
@@ -187,6 +198,7 @@ export function listRoomsForPlayer(playerId: string): MyMatchSummary[] {
         statusLabel = "Series over";
       }
       return {
+        gameKind: "ttt" as const,
         code: r.code,
         mode: r.mode,
         phase: r.phase,

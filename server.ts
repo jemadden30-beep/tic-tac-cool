@@ -10,10 +10,29 @@ import {
   setConnected,
   listPublicRooms,
   listRoomsForPlayer,
+  tttCodeTaken,
 } from "./src/lib/store";
 import { applyPlace, applyPower, startRound, resetSeriesForRematch } from "./src/lib/game";
 import { BOT_ID, chooseBotAction } from "./src/lib/bot";
 import type { BotDifficulty, PowerId, PowerTarget, RoomState } from "./src/lib/types";
+import {
+  createDotsRoom,
+  getDotsRoom,
+  joinDotsRoom,
+  saveDotsRoom,
+  setDotsConnected,
+  listDotsRoomsForPlayer,
+  dotsCodeTaken,
+} from "./src/lib/dots/store";
+import {
+  claimEdge,
+  applyDotsPower,
+  startDotsRound,
+  resetDotsSeries,
+  DOTS_BOT_ID,
+} from "./src/lib/dots/game";
+import { runDotsBotStep } from "./src/lib/dots/bot";
+import type { DotsRoomState, DotsPowerId, DotsPowerTarget, EdgeId } from "./src/lib/dots/types";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOST || "0.0.0.0";
@@ -23,6 +42,62 @@ const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
 const botTimers = new Map<string, NodeJS.Timeout>();
+
+const dotsBotTimers = new Map<string, NodeJS.Timeout>();
+
+function pushDotsSystem(room: DotsRoomState, text: string) {
+  room.chat.push({
+    id: `${Date.now()}-sys`,
+    playerId: "system",
+    name: "System",
+    text,
+    at: Date.now(),
+  });
+  if (room.chat.length > 100) room.chat = room.chat.slice(-100);
+}
+
+function broadcastDots(io: IOServer, room: DotsRoomState, opts?: { emitAnimation?: boolean }) {
+  const shouldAnim = opts?.emitAnimation && room.lastAnimation;
+  const anim = shouldAnim ? room.lastAnimation : null;
+  if (shouldAnim) room.lastAnimation = null;
+  saveDotsRoom(room);
+  io.to(`dots:${room.code}`).emit("dots:state", room);
+  if (anim) io.to(`dots:${room.code}`).emit("dots:animation", anim);
+}
+
+function scheduleDotsBot(io: IOServer, code: string, delay = 550) {
+  const existing = dotsBotTimers.get(code);
+  if (existing) clearTimeout(existing);
+  const t = setTimeout(() => runDotsBotTurn(io, code), delay);
+  dotsBotTimers.set(code, t);
+}
+
+function runDotsBotTurn(io: IOServer, code: string) {
+  dotsBotTimers.delete(code);
+  const room = getDotsRoom(code);
+  if (!room || room.mode !== "bot" || room.phase !== "playing") return;
+  const bot = room.players.find((p) => p.id === DOTS_BOT_ID);
+  if (!bot || room.turn !== bot.mark) return;
+
+  const beforeAnim = room.lastAnimation;
+  const ok = runDotsBotStep(room);
+  if (!ok) return;
+  const usedPower = room.lastAnimation && room.lastAnimation !== beforeAnim;
+  broadcastDots(io, room, { emitAnimation: Boolean(usedPower) });
+
+  const botSeat = room.players.find((p) => p.id === DOTS_BOT_ID);
+  if (room.mode === "bot" && room.phase === "playing" && botSeat && room.turn === botSeat.mark) {
+    scheduleDotsBot(io, room.code, 420);
+  }
+}
+
+function maybeDotsBot(io: IOServer, room: DotsRoomState) {
+  const bot = room.players.find((p) => p.id === DOTS_BOT_ID);
+  if (room.mode === "bot" && room.phase === "playing" && bot && room.turn === bot.mark) {
+    scheduleDotsBot(io, room.code);
+  }
+}
+
 
 function pushSystem(room: RoomState, text: string) {
   room.chat.push({
@@ -123,7 +198,14 @@ app.prepare().then(() => {
     socket.on("rooms:mine", (payload: { playerId: string }, cb) => {
       const playerId = payload?.playerId || "";
       if (!playerId) return cb?.({ ok: false, matches: [], error: "Missing player" });
-      cb?.({ ok: true, matches: listRoomsForPlayer(playerId) });
+      const matches = [
+        ...listRoomsForPlayer(playerId),
+        ...listDotsRoomsForPlayer(playerId),
+      ].sort((a, b) => {
+        if (a.yourTurn !== b.yourTurn) return a.yourTurn ? -1 : 1;
+        return b.updatedAt - a.updatedAt;
+      });
+      cb?.({ ok: true, matches });
     });
 
     socket.on(
@@ -139,6 +221,8 @@ app.prepare().then(() => {
         cb
       ) => {
         const mode = payload.mode || "online";
+        // createRoom already unique in TTT store; also skip dots collisions via store makeCode loop only in-ttt —
+        // dots uses separate file so rare collision OK (join routes are game-specific).
         const room = createRoom({
           hostId: payload.playerId,
           hostName: payload.name || "Host",
@@ -378,11 +462,222 @@ app.prepare().then(() => {
       }
     );
 
+
+    // ----- Dots & Boxes -----
+    socket.on(
+      "dots:create",
+      (
+        payload: {
+          playerId: string;
+          name: string;
+          mode: "online" | "hotseat" | "bot";
+          firstTo: number;
+          difficulty?: BotDifficulty;
+        },
+        cb
+      ) => {
+        const mode = payload.mode || "online";
+        const room = createDotsRoom(
+          {
+            hostId: payload.playerId,
+            hostName: payload.name || "Host",
+            mode,
+            firstTo: Math.min(9, Math.max(1, payload.firstTo || 3)),
+            difficulty: payload.difficulty,
+          },
+          (code) => tttCodeTaken(code)
+        );
+        joinedCode = `dots:${room.code}`;
+        playerId = payload.playerId;
+        socket.join(joinedCode);
+
+        if (mode === "bot") {
+          pushDotsSystem(room, `Solo Dots vs bot — first to ${room.firstTo}.`);
+          startDotsRound(room);
+          saveDotsRoom(room);
+        }
+
+        cb?.({ ok: true, room });
+        io.to(joinedCode).emit("dots:state", room);
+        maybeDotsBot(io, room);
+      }
+    );
+
+    socket.on(
+      "dots:join",
+      (payload: { code: string; playerId: string; name: string }, cb) => {
+        const result = joinDotsRoom(
+          payload.code,
+          payload.playerId,
+          payload.name || "Player"
+        );
+        if (!result.ok) {
+          cb?.(result);
+          return;
+        }
+        joinedCode = `dots:${result.room.code}`;
+        playerId = payload.playerId;
+        socket.join(joinedCode);
+        cb?.({ ok: true, room: result.room });
+        io.to(joinedCode).emit("dots:state", result.room);
+      }
+    );
+
+    socket.on(
+      "dots:sync",
+      (payload: { code: string; playerId: string; name?: string }, cb) => {
+        const room = getDotsRoom(payload.code);
+        if (!room) {
+          cb?.({ ok: false, error: "Room not found" });
+          return;
+        }
+        const known = room.players.some((p) => p.id === payload.playerId);
+        if (!known) {
+          const joined = joinDotsRoom(
+            payload.code,
+            payload.playerId,
+            payload.name || "Player"
+          );
+          if (!joined.ok) {
+            cb?.(joined);
+            return;
+          }
+        } else {
+          setDotsConnected(room.code, payload.playerId, true);
+        }
+        joinedCode = `dots:${room.code.toUpperCase()}`;
+        playerId = payload.playerId;
+        socket.join(joinedCode);
+        const fresh = getDotsRoom(room.code)!;
+        cb?.({ ok: true, room: fresh });
+        io.to(joinedCode).emit("dots:state", fresh);
+        maybeDotsBot(io, fresh);
+      }
+    );
+
+    socket.on(
+      "dots:start",
+      (payload: { code: string; playerId: string }, cb) => {
+        const room = getDotsRoom(payload.code);
+        if (!room) return cb?.({ ok: false, error: "Missing room" });
+        if (room.hostId !== payload.playerId && room.mode === "online") {
+          return cb?.({ ok: false, error: "Only host can start" });
+        }
+        room.seriesWinner = null;
+        if (room.phase === "series_over") {
+          resetDotsSeries(room);
+        }
+        startDotsRound(room);
+        saveDotsRoom(room);
+        io.to(`dots:${room.code}`).emit("dots:state", room);
+        cb?.({ ok: true, room });
+        maybeDotsBot(io, room);
+      }
+    );
+
+    socket.on(
+      "dots:nextRound",
+      (payload: { code: string; playerId: string }, cb) => {
+        const room = getDotsRoom(payload.code);
+        if (!room) return cb?.({ ok: false, error: "Missing room" });
+        if (room.phase !== "round_over") {
+          return cb?.({ ok: false, error: "Round not over" });
+        }
+        startDotsRound(room);
+        saveDotsRoom(room);
+        io.to(`dots:${room.code}`).emit("dots:state", room);
+        cb?.({ ok: true, room });
+        maybeDotsBot(io, room);
+      }
+    );
+
+    socket.on(
+      "dots:claim",
+      (payload: { code: string; playerId: string; edge: EdgeId }, cb) => {
+        const room = getDotsRoom(payload.code);
+        if (!room) return cb?.({ ok: false, error: "Missing room" });
+        if (payload.playerId === DOTS_BOT_ID) {
+          return cb?.({ ok: false, error: "Nice try" });
+        }
+        const result = claimEdge(room, payload.playerId, payload.edge);
+        if (!result.ok) return cb?.(result);
+        saveDotsRoom(room);
+        io.to(`dots:${room.code}`).emit("dots:state", room);
+        cb?.({ ok: true, room });
+        maybeDotsBot(io, room);
+      }
+    );
+
+    socket.on(
+      "dots:power",
+      (
+        payload: {
+          code: string;
+          playerId: string;
+          power: DotsPowerId;
+          target: DotsPowerTarget;
+        },
+        cb
+      ) => {
+        const room = getDotsRoom(payload.code);
+        if (!room) return cb?.({ ok: false, error: "Missing room" });
+        if (payload.playerId === DOTS_BOT_ID) {
+          return cb?.({ ok: false, error: "Nice try" });
+        }
+        const result = applyDotsPower(
+          room,
+          payload.playerId,
+          payload.power,
+          payload.target
+        );
+        if (!result.ok) return cb?.(result);
+        const anim = room.lastAnimation;
+        room.lastAnimation = null;
+        saveDotsRoom(room);
+        io.to(`dots:${room.code}`).emit("dots:state", room);
+        if (anim) io.to(`dots:${room.code}`).emit("dots:animation", anim);
+        cb?.({ ok: true, room });
+        maybeDotsBot(io, room);
+      }
+    );
+
+    socket.on(
+      "dots:chat",
+      (payload: { code: string; playerId: string; text: string }, cb) => {
+        const room = getDotsRoom(payload.code);
+        if (!room) return cb?.({ ok: false, error: "Missing room" });
+        const p = room.players.find((x) => x.id === payload.playerId);
+        const text = (payload.text || "").trim().slice(0, 240);
+        if (!text) return cb?.({ ok: false, error: "Empty" });
+        const msg = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          playerId: payload.playerId,
+          name: p?.name || "Guest",
+          text,
+          at: Date.now(),
+        };
+        room.chat.push(msg);
+        if (room.chat.length > 100) room.chat = room.chat.slice(-100);
+        saveDotsRoom(room);
+        io.to(`dots:${room.code}`).emit("chat:message", msg);
+        io.to(`dots:${room.code}`).emit("dots:state", room);
+        cb?.({ ok: true });
+      }
+    );
+
+
     socket.on("disconnect", () => {
       if (joinedCode && playerId) {
-        setConnected(joinedCode, playerId, false);
-        const room = getRoom(joinedCode);
-        if (room) io.to(joinedCode).emit("room:state", room);
+        if (joinedCode.startsWith("dots:")) {
+          const code = joinedCode.slice(5);
+          setDotsConnected(code, playerId, false);
+          const room = getDotsRoom(code);
+          if (room) io.to(joinedCode).emit("dots:state", room);
+        } else {
+          setConnected(joinedCode, playerId, false);
+          const room = getRoom(joinedCode);
+          if (room) io.to(joinedCode).emit("room:state", room);
+        }
       }
     });
   });

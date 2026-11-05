@@ -1,0 +1,82 @@
+import type { DotsPowerDef, DotsPowerId } from "./types";
+
+export const DOTS_POWER_DEFS: Record<DotsPowerId, DotsPowerDef> = {
+  snip: {
+    id: "snip",
+    name: "Snip",
+    emoji: "✂️",
+    description: "Erase a claimed edge. Boxes that needed it reopen.",
+    cost: 25,
+    needsTarget: "edge",
+    edgeFilter: "claimed",
+  },
+  hijack: {
+    id: "hijack",
+    name: "Hijack",
+    emoji: "🏴‍☠️",
+    description: "Steal one of the opponent’s completed boxes.",
+    cost: 40,
+    needsTarget: "box",
+    boxFilter: "opponent",
+  },
+  twin: {
+    id: "twin",
+    name: "Twin Line",
+    emoji: "Ⅱ",
+    description: "Claim two edges this turn (even without closing a box).",
+    cost: 35,
+    needsTarget: "none",
+  },
+  freeze: {
+    id: "freeze",
+    name: "Freeze",
+    emoji: "🧊",
+    description: "Freeze an empty edge so the opponent can’t take it next turn.",
+    cost: 30,
+    needsTarget: "edge",
+    edgeFilter: "empty",
+  },
+  silence: {
+    id: "silence",
+    name: "Silence",
+    emoji: "🔇",
+    description: "Opponent cannot use powers on their next turn.",
+    cost: 30,
+    needsTarget: "none",
+  },
+  spark: {
+    id: "spark",
+    name: "Spark",
+    emoji: "⚡",
+    description: "Your next edge claim keeps your turn even if it doesn’t close a box.",
+    cost: 20,
+    needsTarget: "none",
+  },
+  rewind: {
+    id: "rewind",
+    name: "Rewind",
+    emoji: "⏪",
+    description: "Undo the opponent’s last edge claim (and any boxes they scored).",
+    cost: 35,
+    needsTarget: "none",
+  },
+  vault: {
+    id: "vault",
+    name: "Vault",
+    emoji: "🚀",
+    description: "Spend ALL energy to steal up to two opponent boxes.",
+    cost: 0,
+    needsTarget: "none",
+  },
+};
+
+export const DOTS_POWER_ORDER: DotsPowerId[] = [
+  "snip",
+  "spark",
+  "freeze",
+  "silence",
+  "twin",
+  "rewind",
+  "hijack",
+  "vault",
+];

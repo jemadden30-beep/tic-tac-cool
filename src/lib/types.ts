@@ -121,6 +121,7 @@ export interface PublicRoom {
 }
 
 export interface MyMatchSummary {
+  gameKind: "ttt" | "dots";
   code: string;
   mode: GameMode;
   phase: RoomPhase;

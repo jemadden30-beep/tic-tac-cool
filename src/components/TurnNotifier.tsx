@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { RoomState } from "@/lib/types";
 
 const PERM_KEY = "ttc_notify_pref"; // "granted" | "denied" | "dismissed"
 
@@ -51,11 +50,11 @@ function flashTitle(message: string) {
   document.addEventListener("visibilitychange", restore);
 }
 
-function showNotification(roomCode: string) {
+function showNotification(roomCode: string, gameLabel: string) {
   if (typeof Notification === "undefined") return;
   if (Notification.permission !== "granted") return;
   try {
-    const n = new Notification("Tic Tac Cool — your turn!", {
+    const n = new Notification(`${gameLabel} — your turn!`, {
       body: `Room ${roomCode}: it's your move.`,
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
@@ -70,12 +69,23 @@ function showNotification(roomCode: string) {
   }
 }
 
+type TurnRoom = {
+  code: string;
+  phase: string;
+  mode: string;
+  turn: string;
+  updatedAt: number;
+  players: { id: string; mark: string }[];
+};
+
 export function TurnNotifier({
   room,
   playerId,
+  gameLabel = "Tic Tac Cool",
 }: {
-  room: RoomState;
+  room: TurnRoom;
   playerId: string;
+  gameLabel?: string;
 }) {
   const [banner, setBanner] = useState(false);
   const prevMine = useRef<boolean | null>(null);
@@ -106,18 +116,17 @@ export function TurnNotifier({
   useEffect(() => {
     const was = prevMine.current;
     prevMine.current = isMyTurn;
-    // Fire on transition to my turn (including first paint after rejoin)
     if (!isMyTurn) return;
     if (was === true) return;
 
     playBeep();
     if (document.hidden) {
-      flashTitle("● Your turn — Tic Tac Cool");
+      flashTitle(`● Your turn — ${gameLabel}`);
     }
     if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-      showNotification(room.code);
+      showNotification(room.code, gameLabel);
     }
-  }, [isMyTurn, room.code, room.turn, room.phase, room.updatedAt]);
+  }, [isMyTurn, room.code, room.turn, room.phase, room.updatedAt, gameLabel]);
 
   const enable = async () => {
     try {
@@ -130,7 +139,7 @@ export function TurnNotifier({
       localStorage.setItem(PERM_KEY, result === "granted" ? "granted" : "denied");
       setBanner(false);
       if (result === "granted" && isMyTurn) {
-        showNotification(room.code);
+        showNotification(room.code, gameLabel);
       }
     } catch {
       localStorage.setItem(PERM_KEY, "denied");

@@ -7,6 +7,9 @@ import { usePlayer } from "@/hooks/usePlayer";
 import { useSocket } from "@/hooks/useSocket";
 import { POWER_DEFS, POWER_ORDER } from "@/lib/powers";
 import type { BotDifficulty, MyMatchSummary } from "@/lib/types";
+import type { DotsMatchSummary } from "@/lib/dots/types";
+
+type MatchRow = MyMatchSummary | DotsMatchSummary;
 
 const MATCHES_KEY = "ttc_match_codes";
 
@@ -36,8 +39,9 @@ export default function HomePage() {
   const [firstTo, setFirstTo] = useState(3);
   const [difficulty, setDifficulty] = useState<BotDifficulty>("medium");
   const [busy, setBusy] = useState(false);
-  const [matches, setMatches] = useState<MyMatchSummary[]>([]);
+  const [matches, setMatches] = useState<MatchRow[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(false);
+  const [gamePick, setGamePick] = useState<"ttt" | null>("ttt");
 
   const refreshMatches = useCallback(async () => {
     if (!ready || !playerId || !connected) return;
@@ -96,20 +100,48 @@ export default function HomePage() {
       <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 sm:px-6">
         <header className="space-y-3 text-center sm:text-left">
           <p className="text-xs font-semibold uppercase tracking-[0.35em] text-sky-300">
-            Power-up tic-tac-toe
+            Power-up parlor games
           </p>
           <h1 className="bg-gradient-to-r from-sky-300 via-blue-200 to-indigo-300 bg-clip-text text-5xl font-black text-transparent sm:text-6xl">
             Tic Tac Cool
           </h1>
           <p className="max-w-2xl text-white/70">
-            Boot tiles, summon lightning, spin a tornado, expand to 4×4 — duel friends online
-            or train against a bot with four difficulty levels.
+            Pick a game below — power-up tic-tac-toe or classic Dots &amp; Boxes with energy
+            powers, online rooms, and bots.
           </p>
           <p className="text-sm text-white/40">
             Socket {connected ? "online" : "connecting…"} · Career W {stats.wins} / L{" "}
             {stats.losses} · Best streak {stats.bestStreak}
           </p>
         </header>
+
+        <section className="grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setGamePick("ttt")}
+            className={`rounded-3xl border p-5 text-left transition ${
+              gamePick === "ttt"
+                ? "border-sky-400 bg-sky-500/20 shadow-[0_0_24px_rgba(56,189,248,0.25)]"
+                : "border-white/10 bg-white/5 hover:border-white/25"
+            }`}
+          >
+            <div className="text-2xl">❌⭕</div>
+            <h2 className="mt-1 text-xl font-black text-sky-100">Tic Tac Cool</h2>
+            <p className="mt-1 text-sm text-white/55">
+              Power-up tic-tac-toe — expand the board, boot tiles, duel online or vs bot.
+            </p>
+          </button>
+          <Link
+            href="/dots"
+            className="rounded-3xl border border-white/10 bg-white/5 p-5 text-left transition hover:border-indigo-400/50 hover:bg-indigo-500/15"
+          >
+            <div className="text-2xl">⬚</div>
+            <h2 className="mt-1 text-xl font-black text-indigo-100">Dots &amp; Boxes</h2>
+            <p className="mt-1 text-sm text-white/55">
+              10×10 dots, claim edges, close boxes — with snip, hijack, freeze &amp; more.
+            </p>
+          </Link>
+        </section>
 
         <section className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -135,15 +167,18 @@ export default function HomePage() {
           ) : (
             <ul className="space-y-2">
               {matches.map((m) => (
-                <li key={m.code}>
+                <li key={`${m.gameKind}-${m.code}`}>
                   <Link
-                    href={`/room/${m.code}`}
+                    href={m.gameKind === "dots" ? `/dots/room/${m.code}` : `/room/${m.code}`}
                     className="block rounded-2xl border border-white/10 bg-black/25 p-3 transition hover:border-sky-400/50 hover:bg-sky-500/10 active:scale-[0.99]"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-mono text-lg font-black text-sky-300">{m.code}</span>
+                          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase text-white/60">
+                            {m.gameKind === "dots" ? "dots" : "ttt"}
+                          </span>
                           <span
                             className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
                               m.yourTurn
