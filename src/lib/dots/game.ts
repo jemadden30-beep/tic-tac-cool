@@ -213,6 +213,19 @@ function uncompleteBoxesUsing(room: DotsRoomState, edge: EdgeId): number[] {
   return cleared;
 }
 
+/** Erase claimed edges once, reopening every affected box, including neighbors. */
+function eraseEdges(room: DotsRoomState, edges: EdgeId[]): boolean {
+  const claimed = [...new Set(edges)].filter((edge) => room.edges[edge]);
+  if (!claimed.length) return false;
+  for (const edge of claimed) {
+    delete room.edges[edge];
+    uncompleteBoxesUsing(room, edge);
+  }
+  if (room.lastClaim && claimed.includes(room.lastClaim.edge)) room.lastClaim = null;
+  recountBoxes(room);
+  return true;
+}
+
 function finishRoundIfNeeded(room: DotsRoomState) {
   const totalEdges = allEdgeIds().length;
   const claimed = Object.keys(room.edges).length;
@@ -337,6 +350,10 @@ export function applyDotsPower(
     return { ok: false, error: "Not enough energy" };
   }
 
+  if (!target || target.kind !== def.needsTarget) {
+    return { ok: false, error: `Pick a ${def.needsTarget} for ${def.name}` };
+  }
+
   const opponent = room.players.find((p) => p.mark !== player.mark);
 
   switch (power) {
@@ -345,9 +362,46 @@ export function applyDotsPower(
         return { ok: false, error: "Pick a claimed edge" };
       }
       if (!room.edges[target.edge]) return { ok: false, error: "Edge is empty" };
-      delete room.edges[target.edge];
-      uncompleteBoxesUsing(room, target.edge);
-      recountBoxes(room);
+      eraseEdges(room, [target.edge]);
+      break;
+    }
+    case "bomb": {
+      if (target.kind !== "box" || !Number.isInteger(target.index) ||
+          target.index < 0 || target.index >= BOXES * BOXES) {
+        return { ok: false, error: "Pick a box on the board" };
+      }
+      const { br, bc } = boxCoords(target.index);
+      if (!eraseEdges(room, boxEdges(br, bc))) {
+        return { ok: false, error: "That box has no claimed edges to bomb" };
+      }
+      break;
+    }
+    case "row_clear":
+    case "col_clear": {
+      const kind = power === "row_clear" ? "row" : "col";
+      if (target.kind !== kind || !Number.isInteger(target.index) ||
+          target.index < 0 || target.index >= BOXES) {
+        return { ok: false, error: `Pick a valid box ${kind === "row" ? "row" : "column"}` };
+      }
+      const edges: EdgeId[] = [];
+      for (let i = 0; i < BOXES; i++) {
+        edges.push(...(kind === "row" ? boxEdges(target.index, i) : boxEdges(i, target.index)));
+      }
+      if (!eraseEdges(room, edges)) {
+        return { ok: false, error: `That ${kind === "row" ? "row" : "column"} has no claimed edges to clear` };
+      }
+      break;
+    }
+    case "cross_clear": {
+      if (target.kind !== "dot" || !Number.isInteger(target.r) || !Number.isInteger(target.c) ||
+          target.r < 0 || target.r >= DOTS || target.c < 0 || target.c >= DOTS) {
+        return { ok: false, error: "Pick a dot on the board" };
+      }
+      const edges: EdgeId[] = [];
+      for (let i = 0; i < BOXES; i++) edges.push(hEdge(target.r, i), vEdge(i, target.c));
+      if (!eraseEdges(room, edges)) {
+        return { ok: false, error: "That dot’s row and column have no claimed edges to clear" };
+      }
       break;
     }
     case "hijack": {

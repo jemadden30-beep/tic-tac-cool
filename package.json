@@ -6,7 +6,8 @@
     "dev": "tsx server.ts",
     "build": "next build",
     "start": "NODE_ENV=production npx tsx server.ts",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:dots": "tsx --test src/lib/dots/game.test.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",

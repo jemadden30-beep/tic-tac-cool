@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { DotsRoomState, DotsPowerId, EdgeId, DotsAnimation } from "@/lib/dots/types";
+import type { DotsRoomState, DotsPowerId, EdgeId, DotsAnimation, DotsPowerTarget } from "@/lib/dots/types";
 import { DOTS_POWER_DEFS } from "@/lib/dots/powers";
 import { DotsBoard } from "./DotsBoard";
 import { DotsPowerPanel } from "./DotsPowerPanel";
@@ -17,7 +17,7 @@ type Api = {
     code: string,
     playerId: string,
     power: DotsPowerId,
-    target: { kind: "edge"; edge: EdgeId } | { kind: "box"; index: number } | { kind: "none" }
+    target: DotsPowerTarget
   ) => Promise<unknown>;
   sendChat: (code: string, playerId: string, text: string) => Promise<unknown>;
   clearError: () => void;
@@ -52,17 +52,12 @@ export function DotsRoom({
   const x = room.players.find((p) => p.mark === "X");
   const o = room.players.find((p) => p.mark === "O");
 
-  const selectMode = pendingPower
-    ? DOTS_POWER_DEFS[pendingPower].needsTarget === "edge"
-      ? "edge"
-      : DOTS_POWER_DEFS[pendingPower].needsTarget === "box"
-        ? "box"
-        : null
-    : "claim";
+  const pendingTarget = pendingPower ? DOTS_POWER_DEFS[pendingPower].needsTarget : null;
+  const selectMode = pendingTarget ? (pendingTarget === "none" ? null : pendingTarget) : "claim";
 
   async function firePower(
     power: DotsPowerId,
-    target: { kind: "edge"; edge: EdgeId } | { kind: "box"; index: number } | { kind: "none" }
+    target: DotsPowerTarget
   ) {
     api.clearError();
     await api.usePower(room.code, playerId, power, target);
@@ -87,8 +82,8 @@ export function DotsRoom({
       const def = DOTS_POWER_DEFS[pendingPower];
       if (def.needsTarget === "edge") {
         await firePower(pendingPower, { kind: "edge", edge });
-        return;
       }
+      return;
     }
     api.clearError();
     await api.claim(room.code, playerId, edge);
@@ -243,6 +238,9 @@ export function DotsRoom({
         onClaimEdge={(e) => void onClaim(e)}
         onSelectEdge={(e) => void onClaim(e)}
         onSelectBox={(i) => void onBox(i)}
+        onSelectRow={(index) => pendingPower && void firePower(pendingPower, { kind: "row", index })}
+        onSelectCol={(index) => pendingPower && void firePower(pendingPower, { kind: "col", index })}
+        onSelectDot={(r, c) => pendingPower && void firePower(pendingPower, { kind: "dot", r, c })}
       />
 
       {room.phase === "playing" && (

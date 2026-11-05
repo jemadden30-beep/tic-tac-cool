@@ -1,16 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { BOXES, DOTS, type EdgeId, type DotsRoomState } from "@/lib/dots/types";
 import type { Mark } from "@/lib/types";
-import { hEdge, vEdge, boxIndex } from "@/lib/dots/game";
+import { hEdge, vEdge, boxIndex, boxCoords, parseEdge } from "@/lib/dots/game";
 
 type Props = {
   room: DotsRoomState;
   interactive: boolean;
-  selectMode?: "claim" | "edge" | "box" | null;
+  selectMode?: "claim" | "edge" | "box" | "row" | "col" | "dot" | null;
   onClaimEdge?: (edge: EdgeId) => void;
   onSelectEdge?: (edge: EdgeId) => void;
   onSelectBox?: (index: number) => void;
+  onSelectRow?: (index: number) => void;
+  onSelectCol?: (index: number) => void;
+  onSelectDot?: (r: number, c: number) => void;
 };
 
 const CELL = 28;
@@ -38,15 +42,28 @@ export function DotsBoard({
   onClaimEdge,
   onSelectEdge,
   onSelectBox,
+  onSelectRow,
+  onSelectCol,
+  onSelectDot,
 }: Props) {
   const size = PAD * 2 + CELL * (DOTS - 1);
   const lastEdge = room.lastClaim?.edge ?? null;
   const lastMark = room.lastClaim?.mark;
+  const [hoverDot, setHoverDot] = useState<{ r: number; c: number } | null>(null);
+  const boxSelectable = interactive && ["box", "row", "col"].includes(selectMode ?? "");
+  const dotSelectable = interactive && selectMode === "dot";
 
   function edgeClick(edge: EdgeId) {
     if (!interactive) return;
     if (selectMode === "edge") onSelectEdge?.(edge);
-    else if (selectMode === "claim" || !selectMode) onClaimEdge?.(edge);
+    else if (selectMode === "claim") onClaimEdge?.(edge);
+    else if (selectMode === "row" || selectMode === "col") {
+      const coords = parseEdge(edge);
+      if (!coords) return;
+      // Shared borders select the row below / column to the right; clamp the outside border.
+      if (selectMode === "row") onSelectRow?.(Math.min(coords.r, BOXES - 1));
+      else onSelectCol?.(Math.min(coords.c, BOXES - 1));
+    }
     const ae = document.activeElement;
     if (ae instanceof HTMLElement && ae.tagName !== "INPUT" && ae.tagName !== "TEXTAREA") {
       ae.blur();
@@ -54,8 +71,11 @@ export function DotsBoard({
   }
 
   function boxClick(index: number) {
-    if (!interactive || selectMode !== "box") return;
-    onSelectBox?.(index);
+    if (!boxSelectable) return;
+    const { br, bc } = boxCoords(index);
+    if (selectMode === "box") onSelectBox?.(index);
+    else if (selectMode === "row") onSelectRow?.(br);
+    else if (selectMode === "col") onSelectCol?.(bc);
   }
 
   function renderEdgeLine(
@@ -73,7 +93,7 @@ export function DotsBoard({
     const glow = lastMark === "O" ? GLOW_P2 : GLOW_P1;
 
     return (
-      <g key={edge}>
+      <g key={edge} pointerEvents={canHit ? "auto" : "none"}>
         <line
           x1={x1}
           y1={y1}
@@ -147,9 +167,16 @@ export function DotsBoard({
                 y={y}
                 width={CELL}
                 height={CELL}
-                className={
-                  selectMode === "box" && interactive ? "cursor-pointer" : undefined
-                }
+                className={boxSelectable ? "cursor-pointer" : undefined}
+                role={boxSelectable ? "button" : undefined}
+                tabIndex={boxSelectable ? 0 : undefined}
+                aria-label={boxSelectable ? `Select box row ${br + 1}, column ${bc + 1}` : undefined}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    boxClick(idx);
+                  }
+                }}
                 fill={
                   owner === "X" ? P1_BOX : owner === "O" ? P2_BOX : "transparent"
                 }
@@ -166,7 +193,7 @@ export function DotsBoard({
             const owner = room.edges[edge];
             const canHit =
               interactive &&
-              ((selectMode === "claim" && !owner) || selectMode === "edge");
+              ((selectMode === "claim" && !owner) || selectMode === "edge" || selectMode === "row" || selectMode === "col");
             const x1 = PAD + c * CELL;
             const x2 = PAD + (c + 1) * CELL;
             const y = PAD + r * CELL;
@@ -180,7 +207,7 @@ export function DotsBoard({
             const owner = room.edges[edge];
             const canHit =
               interactive &&
-              ((selectMode === "claim" && !owner) || selectMode === "edge");
+              ((selectMode === "claim" && !owner) || selectMode === "edge" || selectMode === "row" || selectMode === "col");
             const x = PAD + c * CELL;
             const y1 = PAD + r * CELL;
             const y2 = PAD + (r + 1) * CELL;
@@ -188,15 +215,41 @@ export function DotsBoard({
           })
         )}
 
+        {dotSelectable && hoverDot && (
+          <g stroke="#fbbf24" strokeWidth={6} opacity={0.5} pointerEvents="none">
+            <line x1={PAD} y1={PAD + hoverDot.r * CELL} x2={size - PAD} y2={PAD + hoverDot.r * CELL} />
+            <line x1={PAD + hoverDot.c * CELL} y1={PAD} x2={PAD + hoverDot.c * CELL} y2={size - PAD} />
+          </g>
+        )}
         {Array.from({ length: DOTS }).map((_, r) =>
           Array.from({ length: DOTS }).map((__, c) => (
-            <circle
+            <g
               key={`d-${r}-${c}`}
-              cx={PAD + c * CELL}
-              cy={PAD + r * CELL}
-              r={3.2}
-              fill="#e2e8f0"
-            />
+              pointerEvents={dotSelectable ? "auto" : "none"}
+              className={dotSelectable ? "cursor-crosshair" : undefined}
+              role={dotSelectable ? "button" : undefined}
+              tabIndex={dotSelectable ? 0 : undefined}
+              aria-label={dotSelectable ? `Cross clear at dot row ${r + 1}, column ${c + 1}` : undefined}
+              onMouseEnter={() => dotSelectable && setHoverDot({ r, c })}
+              onMouseLeave={() => setHoverDot(null)}
+              onFocus={() => dotSelectable && setHoverDot({ r, c })}
+              onBlur={() => setHoverDot(null)}
+              onClick={() => dotSelectable && onSelectDot?.(r, c)}
+              onKeyDown={(event) => {
+                if (dotSelectable && (event.key === "Enter" || event.key === " ")) {
+                  event.preventDefault();
+                  onSelectDot?.(r, c);
+                }
+              }}
+            >
+              {dotSelectable && <circle cx={PAD + c * CELL} cy={PAD + r * CELL} r={11} fill="transparent" />}
+              <circle
+                cx={PAD + c * CELL}
+                cy={PAD + r * CELL}
+                r={dotSelectable ? 4.5 : 3.2}
+                fill={dotSelectable ? "#fbbf24" : "#e2e8f0"}
+              />
+            </g>
           ))
         )}
       </svg>
@@ -206,7 +259,10 @@ export function DotsBoard({
         <span className="font-semibold text-red-400">P2 red</span>
         {" · glow = last claim"}
         {selectMode === "edge" ? " · select an edge for power" : ""}
-        {selectMode === "box" ? " · tap a filled box" : ""}
+        {selectMode === "box" ? " · tap a box" : ""}
+        {selectMode === "row" ? " · tap a box or edge in the row to clear" : ""}
+        {selectMode === "col" ? " · tap a box or edge in the column to clear" : ""}
+        {selectMode === "dot" ? " · tap a gold dot for cross clear" : ""}
       </p>
     </div>
   );

@@ -18,12 +18,19 @@ export type DotsPowerId =
   | "freeze"
   | "silence"
   | "spark"
+  | "bomb"
+  | "row_clear"
+  | "col_clear"
+  | "cross_clear"
   | "rewind"
   | "vault";
 
 export type DotsPowerTarget =
   | { kind: "edge"; edge: EdgeId }
   | { kind: "box"; index: number }
+  | { kind: "row"; index: number }
+  | { kind: "col"; index: number }
+  | { kind: "dot"; r: number; c: number }
   | { kind: "none" };
 
 export interface DotsPowerDef {
@@ -32,7 +39,7 @@ export interface DotsPowerDef {
   emoji: string;
   description: string;
   cost: number;
-  needsTarget: "edge" | "box" | "none";
+  needsTarget: DotsPowerTarget["kind"];
   /** For edge targets: claimed / empty / any */
   edgeFilter?: "claimed" | "empty" | "any";
   boxFilter?: "opponent" | "any";
