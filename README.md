@@ -27,7 +27,7 @@ Power-up tic-tac-toe with online multiplayer, hotseat, chat, series scoring, and
 | 🛡️ Shield | Protect one of your tiles from removal until your next turn |
 | ✨ Double Place | Place two marks in one turn |
 
-Each round every player is dealt **3 random powers**. Using a power usually spends your turn (Double Place does not end the turn until both marks are placed).
+Each round every player is dealt **3 random powers**. Using a power does **not** end your turn — you still place a mark afterward (Double Place lets you place two).
 
 ## Quick start
 

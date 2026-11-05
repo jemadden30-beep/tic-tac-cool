@@ -330,8 +330,8 @@ export function chooseBotAction(room: RoomState): BotAction | null {
     }
   }
 
-  // Power before place sometimes
-  if (!room.doublePending) {
+  // Power before place sometimes (at most one power, then must place)
+  if (!room.doublePending && !room.powerUsedThisTurn) {
     const powerAct = maybePower(room, me, difficulty);
     if (powerAct) return powerAct;
   }

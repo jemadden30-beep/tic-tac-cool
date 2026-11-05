@@ -87,6 +87,7 @@ export function startRound(room: RoomState) {
   room.phase = "playing";
   room.pendingPower = null;
   room.doublePending = false;
+  room.powerUsedThisTurn = false;
   room.lastAnimation = null;
   for (const p of room.players) {
     p.powers = dealPowers(3);
@@ -128,6 +129,7 @@ export function applyPlace(
   if (room.board[index] !== null) return { ok: false, error: "Occupied" };
 
   clearShieldsOnTurnStart(room, room.turn);
+  room.powerUsedThisTurn = false;
   room.board[index] = room.turn;
 
   const result = checkWinner(room.board, room.boardSize);
@@ -218,7 +220,7 @@ function applyPowerAs(
   clearShieldsOnTurnStart(room, player.mark);
   const opp = opponentOf(player.mark);
   let meta: Record<string, unknown> = {};
-  let consumeTurn = true;
+  let consumeTurn = false; // powers never end the turn — place still follows
   let keepPower = false;
 
   switch (power) {
@@ -331,6 +333,7 @@ function applyPowerAs(
   }
 
   if (!keepPower) player.powers.splice(idx, 1);
+  room.powerUsedThisTurn = true;
 
   room.lastAnimation = {
     id: `${Date.now()}-${power}`,
@@ -395,6 +398,7 @@ export function createRoomState(opts: {
     createdAt: Date.now(),
     updatedAt: Date.now(),
     doublePending: false,
+    powerUsedThisTurn: false,
     roundIndex: 0,
   };
 

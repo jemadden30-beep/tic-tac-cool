@@ -294,9 +294,12 @@ export function GameRoom({
 
           {room.phase === "playing" && (
             <div>
-              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-white/50">
+              <h3 className="mb-1 text-sm font-semibold uppercase tracking-wider text-white/50">
                 {isMyTurn ? "Your powers" : "Powers (wait for turn)"}
               </h3>
+              <p className="mb-2 text-[11px] text-sky-200/70">
+                Powers don’t end your turn — use one, then place a mark.
+              </p>
               <PowerPanel
                 powers={actingPowers}
                 selected={selectedPower}

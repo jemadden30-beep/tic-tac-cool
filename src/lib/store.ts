@@ -61,6 +61,9 @@ export function getRoom(code: string): RoomState | undefined {
   if (room && typeof room.roundIndex !== "number") {
     room.roundIndex = 0;
   }
+  if (room && typeof room.powerUsedThisTurn !== "boolean") {
+    room.powerUsedThisTurn = false;
+  }
   return room;
 }
 

@@ -83,6 +83,8 @@ export interface RoomState {
   doublePending: boolean;
   /** Increments each round in a series; used to alternate who is X */
   roundIndex: number;
+  /** True after a power is used until a mark is placed */
+  powerUsedThisTurn: boolean;
 }
 
 export interface PublicRoom {

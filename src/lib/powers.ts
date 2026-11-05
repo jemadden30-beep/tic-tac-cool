@@ -58,7 +58,7 @@ export const POWER_DEFS: Record<PowerId, PowerDef> = {
     id: "double",
     name: "Double Place",
     emoji: "✨",
-    description: "Place two marks this turn.",
+    description: "Place two marks when you place (does not skip your place).",
     needsTarget: "none",
   },
 };
