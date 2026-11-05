@@ -289,19 +289,29 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-black/25 p-5">
-          <h2 className="mb-4 text-lg font-bold">Power moves</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="rounded-3xl border border-white/10 bg-black/25 p-4">
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-base font-bold">Power moves</h2>
+            <p className="text-[11px] text-white/40">Hover or long-press a chip for details</p>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
             {POWER_ORDER.map((id) => {
               const p = POWER_DEFS[id];
               return (
-                <div key={id} className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                  <div className="text-2xl">{p.emoji}</div>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-bold">{p.name}</div>
-                    <span className="text-[10px] font-bold text-sky-300">⚡{p.cost}</span>
+                <div
+                  key={id}
+                  title={`${p.name} — ⚡${p.cost}\n${p.description}`}
+                  className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 transition hover:border-sky-400/40 hover:bg-sky-500/10"
+                >
+                  <span className="text-base leading-none" aria-hidden>
+                    {p.emoji}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[11px] font-semibold leading-tight">{p.name}</div>
+                    <div className="text-[10px] font-bold leading-tight text-sky-300">
+                      ⚡{p.cost === 0 ? "all" : p.cost}
+                    </div>
                   </div>
-                  <p className="text-xs text-white/55">{p.description}</p>
                 </div>
               );
             })}
