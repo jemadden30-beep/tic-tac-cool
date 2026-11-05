@@ -335,7 +335,7 @@ export function chooseBotAction(room: RoomState): BotAction | null {
     if (blockAt !== null) return { type: "place", index: blockAt };
   }
 
-  if (!room.doublePending && !room.powerUsedThisTurn) {
+  if (!room.doublePending && !room.powerUsedThisTurn && !botPlayer.silenced) {
     const powerAct = maybePower(room, me, difficulty);
     if (powerAct) return powerAct;
   }

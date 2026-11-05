@@ -111,16 +111,16 @@ export function grantTurnEnergy(room: RoomState, mark: Mark) {
   if (!p) return;
   ensurePlayerEnergyFields(p);
   p.energy = Math.min(ENERGY_MAX, p.energy + ENERGY_PER_TURN);
-  // Silence lasts one opponent turn — clear when their turn begins
-  p.silenced = false;
+  // NOTE: do NOT clear silence here — Silence must last through the victim's full turn
 }
 
 function advanceTurn(room: RoomState) {
+  // Silence lasts for the victim's next turn; clear when that turn ends
+  const ending = playerByMark(room, room.turn);
+  if (ending?.silenced) ending.silenced = false;
+
   room.turn = opponentOf(room.turn);
-  // Clear lock if the locker just finished (lock lasts until locker completes a turn)
-  // Lock blocks opponent; we clear when the locked-by player's turn comes around again
-  // Simpler: clear lock when the player who placed the lock starts their NEXT turn after locking
-  // For v1: clear lock when turn advances TO the locker (they've finished one full cycle)
+  // Clear lock when turn returns to the locker
   const locker = room.lockedBy;
   if (locker && room.turn === locker) {
     room.lockedCell = null;
