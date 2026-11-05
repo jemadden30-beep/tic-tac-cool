@@ -7,6 +7,7 @@ import { PowerPanel } from "./PowerPanel";
 import { Chat } from "./Chat";
 import { Scoreboard } from "./Scoreboard";
 import { PowerFX } from "./PowerFX";
+import { TurnNotifier } from "./TurnNotifier";
 import { POWER_DEFS } from "@/lib/powers";
 import type { PowerId, PowerTarget, RoomState } from "@/lib/types";
 
@@ -182,6 +183,7 @@ export function GameRoom({
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-3 py-2 sm:gap-4 sm:px-6 sm:py-4">
       <PowerFX animation={api.animation} onDone={api.clearAnimation} />
+      <TurnNotifier room={room} playerId={playerId} />
 
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>

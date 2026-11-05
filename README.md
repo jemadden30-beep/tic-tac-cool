@@ -74,6 +74,11 @@ npm start
 3. You are **X**; the bot is **O**. Series score and streaks work the same as multiplayer.
 4. System chat lines note when the bot fires a power (animations still play).
 
+## Turn notifications
+
+Enable browser notifications when prompted (or from the banner). You’ll get a notification,
+beep, and title flash when it becomes your turn in online/bot games — including after rejoin.
+
 ## Async online play
 
 Online rooms are **turn-based async**. The host can **Start** and play before the guest opens the invite —
