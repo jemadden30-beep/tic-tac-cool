@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, use } from "react";
+import { useEffect, use, useRef } from "react";
 import Link from "next/link";
 import { usePlayer } from "@/hooks/usePlayer";
 import { useSocket } from "@/hooks/useSocket";
@@ -22,6 +22,8 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
   const { code } = use(params);
   const { playerId, name, ready } = usePlayer();
   const api = useSocket();
+  const sawRoom = useRef(false);
+  if (api.room) sawRoom.current = true;
 
   useEffect(() => {
     if (!ready || !api.connected) return;
@@ -40,7 +42,9 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
     return (
       <main className="grid min-h-screen place-items-center px-4">
         <div className="max-w-md rounded-3xl border border-white/10 bg-white/5 p-6 text-center">
-          <p className="text-lg font-bold">Connecting to {code.toUpperCase()}…</p>
+          <p className="text-lg font-bold">
+            {sawRoom.current ? "This room was deleted." : `Connecting to ${code.toUpperCase()}…`}
+          </p>
           {api.error && <p className="mt-2 text-rose-300">{api.error}</p>}
           <Link href="/" className="mt-4 inline-block text-blue-300 underline">
             Back home

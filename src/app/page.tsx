@@ -24,6 +24,19 @@ function rememberMatchCode(code: string) {
   }
 }
 
+function forgetMatchCode(code: string) {
+  try {
+    const raw = localStorage.getItem(MATCHES_KEY);
+    const list: string[] = raw ? JSON.parse(raw) : [];
+    localStorage.setItem(
+      MATCHES_KEY,
+      JSON.stringify(list.filter((c) => c !== code.toUpperCase()))
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
 const DIFFICULTIES: { id: BotDifficulty; label: string; blurb: string }[] = [
   { id: "easy", label: "Easy", blurb: "Mostly random — warm-up mode" },
   { id: "medium", label: "Medium", blurb: "Blocks & takes wins" },
@@ -34,7 +47,7 @@ const DIFFICULTIES: { id: BotDifficulty; label: string; blurb: string }[] = [
 export default function HomePage() {
   const router = useRouter();
   const { playerId, name, setName, stats, ready } = usePlayer();
-  const { connected, createRoom, joinRoom, listMyMatches, error, clearError } = useSocket();
+  const { connected, createRoom, joinRoom, listMyMatches, deleteMatch, error, clearError } = useSocket();
   const [joinCode, setJoinCode] = useState("");
   const [firstTo, setFirstTo] = useState(3);
   const [difficulty, setDifficulty] = useState<BotDifficulty>("medium");
@@ -56,6 +69,26 @@ export default function HomePage() {
     const id = window.setInterval(() => void refreshMatches(), 8000);
     return () => window.clearInterval(id);
   }, [refreshMatches]);
+
+  async function onDeleteMatch(m: MatchRow) {
+    if (
+      !window.confirm(
+        `Delete match ${m.code} permanently? This removes the room for everyone.`
+      )
+    ) {
+      return;
+    }
+    clearError();
+    const res = await deleteMatch({
+      code: m.code,
+      playerId,
+      gameKind: m.gameKind === "dots" ? "dots" : "ttt",
+    });
+    if (res.ok) {
+      forgetMatchCode(m.code);
+      setMatches((prev) => prev.filter((x) => !(x.code === m.code && x.gameKind === m.gameKind)));
+    }
+  }
 
   async function create(mode: "online" | "hotseat" | "bot") {
     if (!ready) return;
@@ -167,10 +200,13 @@ export default function HomePage() {
           ) : (
             <ul className="space-y-2">
               {matches.map((m) => (
-                <li key={`${m.gameKind}-${m.code}`}>
+                <li
+                  key={`${m.gameKind}-${m.code}`}
+                  className="flex items-stretch gap-2 rounded-2xl border border-white/10 bg-black/25 p-2 transition hover:border-sky-400/40"
+                >
                   <Link
                     href={m.gameKind === "dots" ? `/dots/room/${m.code}` : `/room/${m.code}`}
-                    className="block rounded-2xl border border-white/10 bg-black/25 p-3 transition hover:border-sky-400/50 hover:bg-sky-500/10 active:scale-[0.99]"
+                    className="min-w-0 flex-1 rounded-xl p-2 hover:bg-sky-500/10 active:scale-[0.99]"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="min-w-0">
@@ -211,6 +247,14 @@ export default function HomePage() {
                       </div>
                     </div>
                   </Link>
+                  <button
+                    type="button"
+                    title="Delete match permanently"
+                    onClick={() => void onDeleteMatch(m)}
+                    className="shrink-0 self-center rounded-xl border border-rose-400/35 bg-rose-500/15 px-3 py-2 text-xs font-bold text-rose-100 hover:bg-rose-500/25"
+                  >
+                    Delete
+                  </button>
                 </li>
               ))}
             </ul>

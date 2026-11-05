@@ -30,10 +30,24 @@ function remember(code: string) {
   }
 }
 
+function forget(code: string) {
+  try {
+    const key = "ttc_match_codes";
+    const raw = localStorage.getItem(key);
+    const list: string[] = raw ? JSON.parse(raw) : [];
+    localStorage.setItem(
+      key,
+      JSON.stringify(list.filter((c) => c !== code.toUpperCase()))
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function DotsHomePage() {
   const router = useRouter();
   const { playerId, name, setName, ready } = usePlayer();
-  const { connected, createRoom, joinRoom, listMyMatches, error, clearError } = useDotsSocket();
+  const { connected, createRoom, joinRoom, listMyMatches, deleteMatch, error, clearError } = useDotsSocket();
   const [joinCode, setJoinCode] = useState("");
   const [firstTo, setFirstTo] = useState(3);
   const [difficulty, setDifficulty] = useState<BotDifficulty>("medium");
@@ -53,6 +67,22 @@ export default function DotsHomePage() {
     const id = window.setInterval(() => void refresh(), 8000);
     return () => window.clearInterval(id);
   }, [refresh]);
+
+  async function onDeleteMatch(m: DotsMatchSummary) {
+    if (
+      !window.confirm(
+        `Delete match ${m.code} permanently? This removes the room for everyone.`
+      )
+    ) {
+      return;
+    }
+    clearError();
+    const res = await deleteMatch({ code: m.code, playerId });
+    if (res.ok) {
+      forget(m.code);
+      setMatches((prev) => prev.filter((x) => x.code !== m.code));
+    }
+  }
 
   async function create(mode: "online" | "hotseat" | "bot") {
     if (!ready) return;
@@ -131,10 +161,13 @@ export default function DotsHomePage() {
           ) : (
             <ul className="space-y-2">
               {matches.map((m) => (
-                <li key={m.code}>
+                <li
+                  key={m.code}
+                  className="flex items-stretch gap-2 rounded-2xl border border-white/10 bg-black/25 p-2"
+                >
                   <Link
                     href={`/dots/room/${m.code}`}
-                    className="block rounded-2xl border border-white/10 bg-black/25 p-3 transition hover:border-sky-400/50 hover:bg-sky-500/10"
+                    className="min-w-0 flex-1 rounded-xl p-2 transition hover:border-sky-400/50 hover:bg-sky-500/10"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div>
@@ -153,6 +186,14 @@ export default function DotsHomePage() {
                       </div>
                     </div>
                   </Link>
+                  <button
+                    type="button"
+                    title="Delete match permanently"
+                    onClick={() => void onDeleteMatch(m)}
+                    className="shrink-0 self-center rounded-xl border border-rose-400/35 bg-rose-500/15 px-3 py-2 text-xs font-bold text-rose-100 hover:bg-rose-500/25"
+                  >
+                    Delete
+                  </button>
                 </li>
               ))}
             </ul>

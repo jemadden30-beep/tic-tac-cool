@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { DotsRoomState, DotsPowerId, EdgeId, DotsAnimation, DotsPowerTarget } from "@/lib/dots/types";
 import { DOTS_POWER_DEFS } from "@/lib/dots/powers";
 import { DotsBoard } from "./DotsBoard";
@@ -21,6 +22,10 @@ type Api = {
   ) => Promise<unknown>;
   sendChat: (code: string, playerId: string, text: string) => Promise<unknown>;
   kickO: (code: string, playerId: string) => Promise<unknown>;
+  deleteMatch: (opts: {
+    code: string;
+    playerId: string;
+  }) => Promise<{ ok?: boolean; error?: string }>;
   clearError: () => void;
   error: string | null;
 };
@@ -101,6 +106,33 @@ export function DotsRoom({
       ? `${window.location.origin}/dots/room/${room.code}`
       : `/dots/room/${room.code}`;
 
+  const router = useRouter();
+
+  async function onDeleteRoom() {
+    if (
+      !window.confirm(
+        `Delete room ${room.code} permanently? This removes the match for everyone.`
+      )
+    ) {
+      return;
+    }
+    const res = await api.deleteMatch({ code: room.code, playerId });
+    if (res?.ok) {
+      try {
+        const key = "ttc_match_codes";
+        const raw = localStorage.getItem(key);
+        const list: string[] = raw ? JSON.parse(raw) : [];
+        localStorage.setItem(
+          key,
+          JSON.stringify(list.filter((c) => c !== room.code.toUpperCase()))
+        );
+      } catch {
+        /* ignore */
+      }
+      router.push("/dots");
+    }
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-3 py-6 sm:px-6 [overflow-anchor:none]">
       <TurnNotifier room={room} playerId={playerId} gameLabel="Dots & Boxes" />
@@ -140,6 +172,13 @@ export function DotsRoom({
                 Free P2 seat
               </button>
             )}
+          <button
+            type="button"
+            className="rounded-lg border border-rose-400/40 bg-rose-500/15 px-3 py-1.5 text-xs font-semibold text-rose-100 hover:bg-rose-500/25"
+            onClick={() => void onDeleteRoom()}
+          >
+            Delete room
+          </button>
         </div>
       </div>
 

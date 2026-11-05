@@ -163,6 +163,22 @@ export function kickDotsOSeat(
   return { ok: true, room };
 }
 
+/** Any participant may permanently delete the room from storage. */
+export function deleteDotsRoom(
+  code: string,
+  playerId: string
+): { ok: true; code: string } | { ok: false; error: string } {
+  const room = getDotsRoom(code);
+  if (!room) return { ok: false, error: "Room not found" };
+  if (!room.players.some((p) => p.id === playerId)) {
+    return { ok: false, error: "Only players in this room can delete it" };
+  }
+  const key = room.code;
+  delete rooms[key];
+  persist();
+  return { ok: true, code: key };
+}
+
 export function setDotsConnected(code: string, playerId: string, connected: boolean) {
   const room = getDotsRoom(code);
   if (!room) return;

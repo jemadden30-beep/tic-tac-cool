@@ -205,6 +205,22 @@ export function kickOSeat(
   return { ok: true, room };
 }
 
+/** Any participant may permanently delete the room from storage. */
+export function deleteRoom(
+  code: string,
+  playerId: string
+): { ok: true; code: string } | { ok: false; error: string } {
+  const room = getRoom(code);
+  if (!room) return { ok: false, error: "Room not found" };
+  if (!room.players.some((p) => p.id === playerId)) {
+    return { ok: false, error: "Only players in this room can delete it" };
+  }
+  const key = room.code;
+  delete rooms[key];
+  persist();
+  return { ok: true, code: key };
+}
+
 export function setConnected(code: string, playerId: string, connected: boolean) {
   const room = getRoom(code);
   if (!room) return;

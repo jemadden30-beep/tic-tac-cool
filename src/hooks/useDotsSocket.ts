@@ -27,6 +27,9 @@ export function useDotsSocket() {
     socket.on("connect", () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
     socket.on("dots:state", (r: DotsRoomState) => setRoom(r));
+    socket.on("dots:deleted", (payload: { code?: string }) => {
+      setRoom((prev) => (prev && payload?.code && prev.code === payload.code ? null : prev));
+    });
     socket.on("dots:animation", (a: DotsAnimation | null) => {
       if (a) setAnimation(a);
     });
@@ -171,6 +174,22 @@ export function useDotsSocket() {
     [emit]
   );
 
+  const deleteMatch = useCallback(
+    async (opts: { code: string; playerId: string }) => {
+      const res = await emit<{ ok: boolean; code?: string; error?: string }>("dots:delete", {
+        code: opts.code.toUpperCase(),
+        playerId: opts.playerId,
+      });
+      if (res.ok) {
+        setRoom((prev) =>
+          prev && prev.code.toUpperCase() === opts.code.toUpperCase() ? null : prev
+        );
+      } else if (res.error) setError(res.error);
+      return res;
+    },
+    [emit]
+  );
+
   return {
     connected,
     room,
@@ -189,5 +208,6 @@ export function useDotsSocket() {
     sendChat,
     listMyMatches,
     kickO,
+    deleteMatch,
   };
 }

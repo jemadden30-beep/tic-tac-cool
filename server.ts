@@ -12,6 +12,7 @@ import {
   listRoomsForPlayer,
   tttCodeTaken,
   kickOSeat,
+  deleteRoom,
 } from "./src/lib/store";
 import { applyPlace, applyPower, startRound, resetSeriesForRematch } from "./src/lib/game";
 import { BOT_ID, chooseBotAction } from "./src/lib/bot";
@@ -25,6 +26,7 @@ import {
   listDotsRoomsForPlayer,
   dotsCodeTaken,
   kickDotsOSeat,
+  deleteDotsRoom,
 } from "./src/lib/dots/store";
 import {
   claimEdge,
@@ -353,6 +355,27 @@ app.prepare().then(() => {
     );
 
     socket.on(
+      "room:delete",
+      (payload: { code: string; playerId: string }, cb) => {
+        const code = (payload.code || "").toUpperCase();
+        const result = deleteRoom(code, payload.playerId);
+        if (!result.ok) {
+          cb?.(result);
+          return;
+        }
+        io.to(result.code).emit("room:deleted", { code: result.code });
+        // Drop sockets from the room channel
+        const roomNs = io.sockets.adapter.rooms.get(result.code);
+        if (roomNs) {
+          for (const sid of [...roomNs]) {
+            io.sockets.sockets.get(sid)?.leave(result.code);
+          }
+        }
+        cb?.({ ok: true, code: result.code });
+      }
+    );
+
+    socket.on(
       "game:start",
       (payload: { code: string; playerId: string }, cb) => {
         const room = getRoom(payload.code);
@@ -584,6 +607,27 @@ app.prepare().then(() => {
         saveDotsRoom(result.room);
         io.to(`dots:${result.room.code}`).emit("dots:state", result.room);
         cb?.({ ok: true, room: result.room });
+      }
+    );
+
+    socket.on(
+      "dots:delete",
+      (payload: { code: string; playerId: string }, cb) => {
+        const code = (payload.code || "").toUpperCase();
+        const result = deleteDotsRoom(code, payload.playerId);
+        if (!result.ok) {
+          cb?.(result);
+          return;
+        }
+        const channel = `dots:${result.code}`;
+        io.to(channel).emit("dots:deleted", { code: result.code });
+        const roomNs = io.sockets.adapter.rooms.get(channel);
+        if (roomNs) {
+          for (const sid of [...roomNs]) {
+            io.sockets.sockets.get(sid)?.leave(channel);
+          }
+        }
+        cb?.({ ok: true, code: result.code });
       }
     );
 

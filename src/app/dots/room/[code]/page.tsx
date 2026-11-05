@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { usePlayer } from "@/hooks/usePlayer";
 import { useDotsSocket } from "@/hooks/useDotsSocket";
@@ -23,6 +24,8 @@ export default function DotsRoomPage() {
   const code = String(params.code || "").toUpperCase();
   const { playerId, name, ready } = usePlayer();
   const api = useDotsSocket();
+  const sawRoom = useRef(false);
+  if (api.room) sawRoom.current = true;
 
   useEffect(() => {
     if (!ready || !api.connected) return;
@@ -40,7 +43,14 @@ export default function DotsRoomPage() {
   if (!api.room) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-2 px-4">
-        <p className="text-white/60">{api.error || "Connecting to room…"}</p>
+        <p className="text-white/60">
+          {sawRoom.current
+            ? "This room was deleted."
+            : api.error || "Connecting to room…"}
+        </p>
+        <Link href="/dots" className="text-sky-300 underline">
+          Back to Dots
+        </Link>
       </main>
     );
   }

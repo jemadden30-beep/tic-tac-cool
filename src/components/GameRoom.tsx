@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Board } from "./Board";
 import { PowerPanel } from "./PowerPanel";
 import { Chat } from "./Chat";
@@ -29,6 +30,11 @@ type SocketApi = {
   ) => Promise<unknown>;
   sendChat: (code: string, playerId: string, text: string) => Promise<unknown>;
   kickO: (code: string, playerId: string) => Promise<unknown>;
+  deleteMatch: (opts: {
+    code: string;
+    playerId: string;
+    gameKind?: "ttt" | "dots";
+  }) => Promise<{ ok?: boolean; error?: string }>;
 };
 
 export function GameRoom({
@@ -181,6 +187,33 @@ export function GameRoom({
     room.phase !== "playing" &&
     (room.mode === "hotseat" || room.mode === "bot" || room.hostId === playerId);
 
+  const router = useRouter();
+
+  async function onDeleteRoom() {
+    if (
+      !window.confirm(
+        `Delete room ${room.code} permanently? This removes the match for everyone.`
+      )
+    ) {
+      return;
+    }
+    const res = await api.deleteMatch({ code: room.code, playerId, gameKind: "ttt" });
+    if (res?.ok) {
+      try {
+        const key = "ttc_match_codes";
+        const raw = localStorage.getItem(key);
+        const list: string[] = raw ? JSON.parse(raw) : [];
+        localStorage.setItem(
+          key,
+          JSON.stringify(list.filter((c) => c !== room.code.toUpperCase()))
+        );
+      } catch {
+        /* ignore */
+      }
+      router.push("/");
+    }
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-3 py-2 sm:gap-4 sm:px-6 sm:py-4">
       <PowerFX animation={api.animation} onDone={api.clearAnimation} />
@@ -227,6 +260,13 @@ export function GameRoom({
                 Free P2 seat
               </button>
             )}
+          <button
+            type="button"
+            onClick={() => void onDeleteRoom()}
+            className="rounded-xl border border-rose-400/40 bg-rose-500/15 px-3 py-2 text-sm font-semibold text-rose-100 hover:bg-rose-500/25"
+          >
+            Delete room
+          </button>
           <Link
             href="/"
             className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold hover:bg-white/10"
