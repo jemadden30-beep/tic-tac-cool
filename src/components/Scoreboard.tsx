@@ -26,7 +26,7 @@ export function Scoreboard({
           >
             −
           </button>
-          <span className="min-w-6 text-center text-xl font-black text-amber-300">
+          <span className="min-w-6 text-center text-xl font-black text-sky-300">
             {room.firstTo}
           </span>
           <button
@@ -47,7 +47,7 @@ export function Scoreboard({
           >
             <div>
               <div className="font-bold">
-                <span className={p.mark === "X" ? "text-fuchsia-400" : "text-cyan-300"}>
+                <span className={p.mark === "X" ? "text-sky-400" : "text-blue-300"}>
                   {p.mark}
                 </span>{" "}
                 {p.name}

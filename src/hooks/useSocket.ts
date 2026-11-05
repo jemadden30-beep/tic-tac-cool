@@ -42,8 +42,9 @@ export function useSocket() {
     async (opts: {
       playerId: string;
       name: string;
-      mode: "online" | "hotseat";
+      mode: "online" | "hotseat" | "bot";
       firstTo: number;
+      difficulty?: "easy" | "medium" | "hard" | "expert";
     }) => {
       setError(null);
       const res = await emit<{ ok: boolean; room?: RoomState; error?: string }>(

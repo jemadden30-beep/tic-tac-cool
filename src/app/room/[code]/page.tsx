@@ -29,7 +29,7 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
         <div className="max-w-md rounded-3xl border border-white/10 bg-white/5 p-6 text-center">
           <p className="text-lg font-bold">Connecting to {code.toUpperCase()}…</p>
           {api.error && <p className="mt-2 text-rose-300">{api.error}</p>}
-          <Link href="/" className="mt-4 inline-block text-cyan-300 underline">
+          <Link href="/" className="mt-4 inline-block text-blue-300 underline">
             Back home
           </Link>
         </div>

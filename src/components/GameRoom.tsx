@@ -149,7 +149,7 @@ export function GameRoom({
 
   const canEditFirstTo =
     room.phase !== "playing" &&
-    (room.mode === "hotseat" || room.hostId === playerId);
+    (room.mode === "hotseat" || room.mode === "bot" || room.hostId === playerId);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-3 py-4 sm:px-6">
@@ -157,19 +157,24 @@ export function GameRoom({
 
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.25em] text-fuchsia-300/80">
+          <p className="text-xs uppercase tracking-[0.25em] text-sky-300/90">
             Tic Tac Cool
           </p>
           <h1 className="text-2xl font-black sm:text-3xl">
-            Room <span className="text-amber-300">{room.code}</span>
+            Room <span className="text-sky-300">{room.code}</span>
           </h1>
           <p className="text-sm text-white/50">
-            {room.mode === "hotseat" ? "Hotseat" : "Online"} ·{" "}
-            {room.boardSize}×{room.boardSize}
+            {room.mode === "hotseat"
+              ? "Hotseat"
+              : room.mode === "bot"
+                ? `Solo vs Bot (${room.difficulty || "medium"})`
+                : "Online"}{" "}
+            · {room.boardSize}×{room.boardSize}
             {room.doublePending ? " · Double Place armed" : ""}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {room.mode !== "bot" && (
           <button
             type="button"
             onClick={copyInvite}
@@ -177,6 +182,7 @@ export function GameRoom({
           >
             {copied ? "Copied!" : "Copy invite link"}
           </button>
+          )}
           <Link
             href="/"
             className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold hover:bg-white/10"
@@ -201,7 +207,7 @@ export function GameRoom({
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm">
               <StatusBanner room={room} meId={playerId} />
               {selectedPower && (
-                <span className="rounded-full bg-fuchsia-500/30 px-3 py-1 text-fuchsia-100">
+                <span className="rounded-full bg-blue-500/30 px-3 py-1 text-sky-100">
                   Aim {POWER_DEFS[selectedPower].emoji}{" "}
                   {POWER_DEFS[selectedPower].name}
                   {selectMode === "pair" &&
@@ -245,17 +251,17 @@ export function GameRoom({
                   <button
                     type="button"
                     onClick={() => api.nextRound(room.code, playerId)}
-                    className="rounded-xl bg-amber-400 px-4 py-2 font-bold text-black hover:bg-amber-300"
+                    className="rounded-xl bg-sky-400 px-4 py-2 font-bold text-black hover:bg-sky-300"
                   >
                     Next round
                   </button>
                 )}
                 {room.phase === "series_over" &&
-                  (room.hostId === playerId || room.mode === "hotseat") && (
+                  (room.hostId === playerId || room.mode === "hotseat" || room.mode === "bot") && (
                     <button
                       type="button"
                       onClick={() => api.startGame(room.code, playerId)}
-                      className="rounded-xl bg-fuchsia-500 px-4 py-2 font-bold hover:bg-fuchsia-400"
+                      className="rounded-xl bg-blue-500 px-4 py-2 font-bold hover:bg-blue-400"
                     >
                       Rematch series
                     </button>
@@ -266,16 +272,18 @@ export function GameRoom({
             {room.phase === "lobby" && (
               <div className="mt-4 space-y-3 text-center">
                 <p className="text-white/70">
-                  {room.mode === "online" && room.players.length < 2
-                    ? "Waiting for opponent — share the invite link."
-                    : "Ready when you are."}
+                  {room.mode === "bot"
+                    ? "Bot is ready — start when you want."
+                    : room.mode === "online" && room.players.length < 2
+                      ? "Waiting for opponent — share the invite link."
+                      : "Ready when you are."}
                 </p>
-                {(room.hostId === playerId || room.mode === "hotseat") && (
+                {(room.hostId === playerId || room.mode === "hotseat" || room.mode === "bot") && (
                   <button
                     type="button"
                     onClick={() => api.startGame(room.code, playerId)}
                     disabled={room.mode === "online" && room.players.length < 2}
-                    className="rounded-xl bg-fuchsia-500 px-5 py-2.5 font-bold hover:bg-fuchsia-400 disabled:opacity-40"
+                    className="rounded-xl bg-blue-500 px-5 py-2.5 font-bold hover:bg-blue-400 disabled:opacity-40"
                   >
                     Start match
                   </button>
@@ -311,12 +319,24 @@ export function GameRoom({
             disabled={!api.connected}
           />
           <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-xs text-white/50">
-            <p className="font-semibold text-white/70">Invite code</p>
-            <p className="mt-1 font-mono text-lg text-amber-300">{room.code}</p>
-            <p className="mt-2 break-all">{inviteUrl}</p>
-            <p className="mt-2">
-              Leave anytime — reopen this link to resume. Stats persist in the room.
-            </p>
+            {room.mode === "bot" ? (
+              <>
+                <p className="font-semibold text-white/70">Solo session</p>
+                <p className="mt-1 font-mono text-lg text-sky-300">{room.code}</p>
+                <p className="mt-2">
+                  Reopen this link to resume your bot series. Chat shows system notes when the bot uses powers.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold text-white/70">Invite code</p>
+                <p className="mt-1 font-mono text-lg text-sky-300">{room.code}</p>
+                <p className="mt-2 break-all">{inviteUrl}</p>
+                <p className="mt-2">
+                  Leave anytime — reopen this link to resume. Stats persist in the room.
+                </p>
+              </>
+            )}
           </div>
         </aside>
       </div>
@@ -326,7 +346,7 @@ export function GameRoom({
 
 function StatusBanner({ room, meId }: { room: RoomState; meId: string }) {
   if (room.phase === "lobby") return <span className="text-white/60">Lobby</span>;
-  if (room.phase !== "playing") return <span className="text-amber-200">Round paused</span>;
+  if (room.phase !== "playing") return <span className="text-sky-200">Round paused</span>;
   const turnPlayer = room.players.find((p) => p.mark === room.turn);
   const mine =
     room.mode === "hotseat" || room.players.find((p) => p.id === meId)?.mark === room.turn;

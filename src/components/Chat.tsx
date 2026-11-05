@@ -28,7 +28,7 @@ export function Chat({
 
   return (
     <div className="flex h-72 flex-col rounded-2xl border border-white/10 bg-black/30">
-      <div className="border-b border-white/10 px-3 py-2 text-sm font-semibold text-fuchsia-200">
+      <div className="border-b border-white/10 px-3 py-2 text-sm font-semibold text-sky-200">
         Chat
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto px-3 py-2 text-sm">
@@ -37,7 +37,7 @@ export function Chat({
         )}
         {messages.map((m) => (
           <div key={m.id}>
-            <span className="font-semibold text-cyan-300">{m.name}</span>
+            <span className="font-semibold text-blue-300">{m.name}</span>
             <span className="text-white/40"> · </span>
             <span className="text-white/90">{m.text}</span>
           </div>
@@ -50,13 +50,13 @@ export function Chat({
           onChange={(e) => setText(e.target.value)}
           disabled={disabled}
           placeholder="Message…"
-          className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-fuchsia-400"
+          className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-sky-400"
           maxLength={240}
         />
         <button
           type="submit"
           disabled={disabled}
-          className="rounded-xl bg-fuchsia-600 px-3 py-2 text-sm font-bold hover:bg-fuchsia-500 disabled:opacity-40"
+          className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold hover:bg-blue-500 disabled:opacity-40"
         >
           Send
         </button>

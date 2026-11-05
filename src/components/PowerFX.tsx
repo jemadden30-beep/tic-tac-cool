@@ -39,7 +39,7 @@ export function PowerFX({
           transition={{ type: "spring", stiffness: 260, damping: 16 }}
         >
           <motion.span
-            className="text-7xl drop-shadow-[0_0_30px_rgba(168,85,247,0.8)]"
+            className="text-7xl drop-shadow-[0_0_30px_rgba(59,130,246,0.85)]"
             animate={
               animation.power === "tornado"
                 ? { rotate: 360 }
@@ -54,7 +54,7 @@ export function PowerFX({
             {def.emoji}
           </motion.span>
           <motion.p
-            className="rounded-full bg-fuchsia-600/90 px-4 py-1 text-sm font-bold uppercase tracking-widest text-white shadow-lg"
+            className="rounded-full bg-blue-600/90 px-4 py-1 text-sm font-bold uppercase tracking-widest text-white shadow-lg"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >

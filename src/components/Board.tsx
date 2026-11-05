@@ -96,9 +96,9 @@ function BoardCell({
       onClick={onClick}
       disabled={!interactive}
       className={`relative aspect-square rounded-2xl border text-4xl font-black transition sm:text-5xl
-        ${winning ? "border-amber-300 bg-amber-400/20 shadow-[0_0_24px_rgba(251,191,36,0.55)]" : "border-white/10 bg-white/5"}
-        ${interactive ? "hover:border-fuchsia-400/60 hover:bg-fuchsia-500/10 cursor-pointer" : "cursor-default"}
-        ${shielded ? "ring-2 ring-cyan-400/80" : ""}
+        ${winning ? "border-sky-300 bg-sky-400/25 shadow-[0_0_24px_rgba(56,189,248,0.55)]" : "border-white/10 bg-white/5"}
+        ${interactive ? "hover:border-sky-400/70 hover:bg-blue-500/10 cursor-pointer" : "cursor-default"}
+        ${shielded ? "ring-2 ring-sky-400/90" : ""}
       `}
     >
       <CellFX animation={animation} index={index} />
@@ -121,7 +121,7 @@ function AnimateMark({ mark }: { mark: Cell }) {
     <motion.span
       initial={{ scale: 0, rotate: -30 }}
       animate={{ scale: 1, rotate: 0 }}
-      className={mark === "X" ? "text-fuchsia-400" : "text-cyan-300"}
+      className={mark === "X" ? "text-sky-400" : "text-blue-300"}
     >
       {mark}
     </motion.span>

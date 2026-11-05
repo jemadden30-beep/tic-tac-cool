@@ -58,11 +58,15 @@ export interface AnimationEvent {
 
 export type RoomPhase = "lobby" | "playing" | "round_over" | "series_over";
 
+export type GameMode = "online" | "hotseat" | "bot";
+export type BotDifficulty = "easy" | "medium" | "hard" | "expert";
+
 export interface RoomState {
   code: string;
   hostId: string;
   phase: RoomPhase;
-  mode: "online" | "hotseat";
+  mode: GameMode;
+  difficulty: BotDifficulty | null;
   firstTo: number;
   boardSize: 3 | 4;
   board: Cell[];
@@ -82,7 +86,7 @@ export interface RoomState {
 export interface PublicRoom {
   code: string;
   phase: RoomPhase;
-  mode: "online" | "hotseat";
+  mode: GameMode;
   firstTo: number;
   playerCount: number;
   updatedAt: number;

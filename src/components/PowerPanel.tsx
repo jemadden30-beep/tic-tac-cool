@@ -35,7 +35,7 @@ export function PowerPanel({
             onClick={() => onSelect(active ? null : id)}
             className={`rounded-2xl border p-3 text-left transition ${
               active
-                ? "border-fuchsia-400 bg-fuchsia-500/30 shadow-[0_0_20px_rgba(217,70,239,0.35)]"
+                ? "border-sky-400 bg-blue-500/30 shadow-[0_0_22px_rgba(56,189,248,0.45)]"
                 : "border-white/10 bg-white/5 hover:border-white/30"
             } disabled:opacity-40`}
           >

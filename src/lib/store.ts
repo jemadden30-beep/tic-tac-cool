@@ -42,8 +42,9 @@ function makeCode(): string {
 export function createRoom(opts: {
   hostId: string;
   hostName: string;
-  mode: "online" | "hotseat";
+  mode: "online" | "hotseat" | "bot";
   firstTo: number;
+  difficulty?: "easy" | "medium" | "hard" | "expert";
 }): RoomState {
   const code = makeCode();
   const room = createRoomState({ ...opts, code });
@@ -53,7 +54,11 @@ export function createRoom(opts: {
 }
 
 export function getRoom(code: string): RoomState | undefined {
-  return rooms[code.toUpperCase()];
+  const room = rooms[code.toUpperCase()];
+  if (room && room.difficulty === undefined) {
+    (room as RoomState).difficulty = room.mode === "bot" ? "medium" : null;
+  }
+  return room;
 }
 
 export function saveRoom(room: RoomState) {
@@ -93,6 +98,21 @@ export function joinRoom(
     return { ok: true, room };
   }
 
+  if (room.mode === "bot") {
+    // Only the human host may rejoin; never replace the bot seat
+    if (room.hostId === playerId) {
+      const host = room.players.find((p) => p.mark === "X");
+      if (host) {
+        host.id = playerId;
+        host.name = name || host.name;
+        host.connected = true;
+        saveRoom(room);
+        return { ok: true, room };
+      }
+    }
+    return { ok: false, error: "Solo bot game — create your own" };
+  }
+
   if (room.mode === "hotseat") {
     // Spectator/controller joins as host seat
     const host = room.players[0];
@@ -101,7 +121,9 @@ export function joinRoom(
     }
   }
 
-  const openSeat = room.players.find((p) => p.mark === "O" && !p.connected);
+  const openSeat = room.players.find(
+    (p) => p.mark === "O" && !p.connected && p.id !== "ttc-bot"
+  );
   if (openSeat) {
     openSeat.id = playerId;
     openSeat.name = name;
@@ -111,8 +133,8 @@ export function joinRoom(
   }
 
   if (room.players.length >= 2) {
-    // resume by name match soft
-    const byName = room.players.find((p) => p.name === name);
+    // resume by name match soft — never overwrite bot
+    const byName = room.players.find((p) => p.name === name && p.id !== "ttc-bot");
     if (byName) {
       byName.id = playerId;
       byName.connected = true;

@@ -5,6 +5,7 @@ Power-up tic-tac-toe with online multiplayer, hotseat, chat, series scoring, and
 ## Features
 
 - **Online rooms** with 6-character codes and shareable invite links (`/room/CODE`)
+- **Solo vs Bot** with Easy / Medium / Hard / Expert
 - **Hotseat** mode on one device
 - **Resume mid-game** — room state is persisted to `data/rooms.json`; reopen the invite link
 - **In-game chat**
@@ -42,6 +43,13 @@ Production:
 npm run build
 npm start
 ```
+
+## Solo vs Bot
+
+1. On the home page pick **Easy / Medium / Hard / Expert**.
+2. Set first-to-N, then **Play vs … bot**.
+3. You are **X**; the bot is **O**. Series score and streaks work the same as multiplayer.
+4. System chat lines note when the bot fires a power (animations still play).
 
 ## Invite flow
 

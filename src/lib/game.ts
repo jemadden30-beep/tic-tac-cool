@@ -347,8 +347,9 @@ export function createRoomState(opts: {
   code: string;
   hostId: string;
   hostName: string;
-  mode: "online" | "hotseat";
+  mode: "online" | "hotseat" | "bot";
   firstTo: number;
+  difficulty?: "easy" | "medium" | "hard" | "expert";
 }): RoomState {
   const host: PlayerState = {
     id: opts.hostId,
@@ -368,6 +369,7 @@ export function createRoomState(opts: {
     hostId: opts.hostId,
     phase: "lobby",
     mode: opts.mode,
+    difficulty: opts.mode === "bot" ? opts.difficulty || "medium" : null,
     firstTo: opts.firstTo,
     boardSize: 3,
     board: emptyBoard(3),
@@ -388,6 +390,28 @@ export function createRoomState(opts: {
     room.players.push({
       id: `${opts.hostId}-o`,
       name: "Player O",
+      mark: "O",
+      powers: [],
+      wins: 0,
+      losses: 0,
+      streak: 0,
+      connected: true,
+      shieldIndex: null,
+      frozen: false,
+    });
+  }
+
+  if (opts.mode === "bot") {
+    const labels: Record<string, string> = {
+      easy: "Bot (Easy)",
+      medium: "Bot (Medium)",
+      hard: "Bot (Hard)",
+      expert: "Bot (Expert)",
+    };
+    const diff = opts.difficulty || "medium";
+    room.players.push({
+      id: "ttc-bot",
+      name: labels[diff] || "Bot",
       mark: "O",
       powers: [],
       wins: 0,
