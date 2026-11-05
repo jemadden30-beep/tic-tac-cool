@@ -3,7 +3,7 @@ import path from "path";
 import type { RoomState, PublicRoom } from "./types";
 import { createRoomState } from "./game";
 
-const DATA_DIR = path.join(process.cwd(), "data");
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), "data");
 const STORE_FILE = path.join(DATA_DIR, "rooms.json");
 
 function ensureDir() {
