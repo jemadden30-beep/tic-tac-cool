@@ -510,12 +510,11 @@ function applyPowerAs(
       break;
     }
     case "bomb": {
-      if (target.kind !== "cell") return { ok: false, error: "Pick top-left of 2×2" };
-      const tl = target.index;
-      const r0 = Math.floor(tl / size);
-      const c0 = tl % size;
-      if (r0 > size - 2 || c0 > size - 2) {
-        return { ok: false, error: "2×2 must fit on the board" };
+      if (target.kind !== "vertex") return { ok: false, error: "Pick a 2×2 junction" };
+      const r0 = target.row;
+      const c0 = target.col;
+      if (r0 < 0 || c0 < 0 || r0 > size - 2 || c0 > size - 2) {
+        return { ok: false, error: "Invalid junction" };
       }
       const cleared: number[] = [];
       for (const [dr, dc] of [
@@ -533,7 +532,7 @@ function applyPowerAs(
       room.players.forEach((p) => {
         if (p.shieldIndex !== null && cleared.includes(p.shieldIndex)) p.shieldIndex = null;
       });
-      meta = { cleared, index: tl };
+      meta = { cleared, row: r0, col: c0 };
       break;
     }
     case "lock": {

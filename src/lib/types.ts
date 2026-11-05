@@ -26,6 +26,7 @@ export type PowerTarget =
   | { kind: "line"; axis: "row" | "col"; index: number }
   | { kind: "pair"; a: number; b: number }
   | { kind: "edge"; edge: "up" | "down" | "left" | "right" }
+  | { kind: "vertex"; row: number; col: number } // 2x2 junction (top-left cell row/col)
   | { kind: "none" };
 
 export interface PowerDef {
@@ -34,7 +35,7 @@ export interface PowerDef {
   emoji: string;
   description: string;
   cost: number;
-  needsTarget: "cell" | "line" | "pair" | "edge" | "none";
+  needsTarget: "cell" | "line" | "pair" | "edge" | "vertex" | "none";
   targetOwn?: boolean;
   targetOpponent?: boolean;
   targetEmpty?: boolean;

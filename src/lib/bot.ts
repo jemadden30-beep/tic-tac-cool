@@ -234,12 +234,13 @@ function buildPowerAction(
         target: { kind: "edge", edge: pickRandom(["down", "up", "left", "right"] as const) },
       };
     case "bomb": {
-      const candidates: number[] = [];
+      const candidates: { row: number; col: number }[] = [];
       for (let r = 0; r < size - 1; r++) {
-        for (let c = 0; c < size - 1; c++) candidates.push(r * size + c);
+        for (let c = 0; c < size - 1; c++) candidates.push({ row: r, col: c });
       }
       if (!candidates.length) return null;
-      return { type: "power", power, target: { kind: "cell", index: pickRandom(candidates) } };
+      const v = pickRandom(candidates);
+      return { type: "power", power, target: { kind: "vertex", row: v.row, col: v.col } };
     }
     case "lock":
       if (!empty.length) return null;

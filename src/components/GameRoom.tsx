@@ -89,6 +89,21 @@ export function GameRoom({
   }, [selectedPower, room.code, playerId]);
 
   useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { row: number; col: number };
+      if (!selectedPower) return;
+      void firePower(selectedPower, {
+        kind: "vertex",
+        row: detail.row,
+        col: detail.col,
+      });
+    };
+    window.addEventListener("ttc-vertex", handler);
+    return () => window.removeEventListener("ttc-vertex", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPower, room.code, playerId]);
+
+  useEffect(() => {
     setSelectedPower(null);
     setPairFirst(null);
   }, [room.turn, room.phase]);
@@ -231,6 +246,8 @@ export function GameRoom({
                       : pairFirst === null
                         ? " — pick your tile"
                         : " — pick opponent tile")}
+                  {selectMode === "line" && " — tap a row/column arrow"}
+                  {selectMode === "vertex" && " — tap a ● junction"}
                   {" · "}
                   <button
                     type="button"
