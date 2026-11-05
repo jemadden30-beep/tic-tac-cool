@@ -13,10 +13,13 @@ export function Chat({
   disabled?: boolean;
 }) {
   const [text, setText] = useState("");
-  const bottom = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottom.current?.scrollIntoView({ behavior: "smooth" });
+    const el = listRef.current;
+    if (!el) return;
+    // Keep page viewport stable — only scroll the chat scroller
+    el.scrollTop = el.scrollHeight;
   }, [messages.length]);
 
   const submit = (e: FormEvent) => {
@@ -27,11 +30,11 @@ export function Chat({
   };
 
   return (
-    <div className="flex h-40 flex-col sm:h-72 rounded-2xl border border-white/10 bg-black/30">
+    <div className="flex h-40 flex-col rounded-2xl border border-white/10 bg-black/30 sm:h-72">
       <div className="border-b border-white/10 px-3 py-2 text-sm font-semibold text-sky-200">
         Chat
       </div>
-      <div className="flex-1 space-y-2 overflow-y-auto px-3 py-2 text-sm">
+      <div ref={listRef} className="flex-1 space-y-2 overflow-y-auto px-3 py-2 text-sm">
         {messages.length === 0 && (
           <p className="text-white/40">Say hi — trash talk encouraged.</p>
         )}
@@ -42,7 +45,6 @@ export function Chat({
             <span className="text-white/90">{m.text}</span>
           </div>
         ))}
-        <div ref={bottom} />
       </div>
       <form onSubmit={submit} className="flex gap-2 border-t border-white/10 p-2">
         <input

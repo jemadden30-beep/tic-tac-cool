@@ -34,12 +34,13 @@ function pushSystem(room: RoomState, text: string) {
   if (room.chat.length > 100) room.chat = room.chat.slice(-100);
 }
 
-function broadcast(io: IOServer, room: RoomState) {
+function broadcast(io: IOServer, room: RoomState, opts?: { emitAnimation?: boolean }) {
+  const shouldAnim = opts?.emitAnimation && room.lastAnimation;
+  const anim = shouldAnim ? room.lastAnimation : null;
+  if (shouldAnim) room.lastAnimation = null; // one-shot — don't replay on later moves
   saveRoom(room);
   io.to(room.code).emit("room:state", room);
-  if (room.lastAnimation) {
-    io.to(room.code).emit("game:animation", room.lastAnimation);
-  }
+  if (anim) io.to(room.code).emit("game:animation", anim);
 }
 
 function scheduleBot(io: IOServer, code: string, delay = 650) {
@@ -82,12 +83,13 @@ function runBotTurn(io: IOServer, code: string) {
     }
   }
 
-  broadcast(io, room);
+  const usedPower = action.type === "power";
+  broadcast(io, room, { emitAnimation: usedPower });
 
-  // Bot may still have the turn (double place) or used power that didn't consume
+  // Bot may still have the turn (double / power-then-place)
   const botSeat = room.players.find((p) => p.id === BOT_ID);
   if (room.mode === "bot" && room.phase === "playing" && botSeat && room.turn === botSeat.mark) {
-    scheduleBot(io, room.code, room.doublePending ? 420 : 700);
+    scheduleBot(io, room.code, room.doublePending || room.powerUsedThisTurn ? 420 : 700);
   }
 }
 
@@ -337,9 +339,11 @@ app.prepare().then(() => {
           payload.target
         );
         if (!result.ok) return cb?.(result);
+        const anim = room.lastAnimation;
+        room.lastAnimation = null;
         saveRoom(room);
         io.to(room.code).emit("room:state", room);
-        io.to(room.code).emit("game:animation", room.lastAnimation);
+        if (anim) io.to(room.code).emit("game:animation", anim);
         cb?.({ ok: true, room });
         maybeBotAfterHuman(io, room);
       }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { AnimationEvent } from "@/lib/types";
 import { POWER_DEFS } from "@/lib/powers";
@@ -11,6 +12,19 @@ export function PowerFX({
   animation: AnimationEvent | null;
   onDone: () => void;
 }) {
+  const doneFor = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!animation) return;
+    if (doneFor.current === animation.id) return;
+    const id = animation.id;
+    const timer = window.setTimeout(() => {
+      doneFor.current = id;
+      onDone();
+    }, 1100);
+    return () => window.clearTimeout(timer);
+  }, [animation, onDone]);
+
   if (!animation) return null;
   const def = POWER_DEFS[animation.power];
 
@@ -22,15 +36,11 @@ export function PowerFX({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        onAnimationComplete={() => {
-          setTimeout(onDone, 900);
-        }}
       >
         <motion.div
           className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
         />
         <motion.div
           className="relative flex flex-col items-center gap-2"
@@ -81,10 +91,12 @@ export function CellFX({
     meta.a === index ||
     meta.b === index;
 
-  if (!hit && animation.power !== "tornado" && animation.power !== "expansion") return null;
+  // Only flash targeted cells — full-board powers get the overlay FX only
+  if (!hit) return null;
 
   return (
     <motion.div
+      key={animation.id}
       className="pointer-events-none absolute inset-0 rounded-xl"
       initial={{ opacity: 0.9, scale: 0.8 }}
       animate={{ opacity: 0, scale: 1.4 }}
@@ -97,7 +109,7 @@ export function CellFX({
               ? "radial-gradient(circle, #fb923c, transparent)"
               : animation.power === "broom"
                 ? "radial-gradient(circle, #86efac, transparent)"
-                : "radial-gradient(circle, #c084fc, transparent)",
+                : "radial-gradient(circle, #60a5fa, transparent)",
       }}
     />
   );

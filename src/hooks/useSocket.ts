@@ -22,8 +22,15 @@ export function useSocket() {
         prev ? { ...prev, chat: [...prev.chat.filter((m) => m.id !== msg.id), msg] } : prev
       );
     });
+    let lastAnimId: string | null = null;
     socket.on("game:animation", (a: AnimationEvent | null) => {
-      if (a) setAnimation(a);
+      if (!a) {
+        setAnimation(null);
+        return;
+      }
+      if (a.id === lastAnimId) return;
+      lastAnimId = a.id;
+      setAnimation(a);
     });
     return () => {
       socket.disconnect();

@@ -130,6 +130,7 @@ export function applyPlace(
 
   clearShieldsOnTurnStart(room, room.turn);
   room.powerUsedThisTurn = false;
+  room.lastAnimation = null;
   room.board[index] = room.turn;
 
   const result = checkWinner(room.board, room.boardSize);
