@@ -29,6 +29,10 @@ export function DotsBoard({
     if (!interactive) return;
     if (selectMode === "edge") onSelectEdge?.(edge);
     else if (selectMode === "claim" || !selectMode) onClaimEdge?.(edge);
+    const ae = document.activeElement;
+    if (ae instanceof HTMLElement && ae.tagName !== "INPUT" && ae.tagName !== "TEXTAREA") {
+      ae.blur();
+    }
   }
 
   function boxClick(index: number) {

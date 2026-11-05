@@ -106,7 +106,7 @@ export function DotsRoom({
       : `/dots/room/${room.code}`;
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-3 py-6 sm:px-6">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-3 py-6 sm:px-6 [overflow-anchor:none]">
       <TurnNotifier room={room} playerId={playerId} gameLabel="Dots & Boxes" />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -216,17 +216,21 @@ export function DotsRoom({
         </div>
       )}
 
-      {room.phase === "playing" && (
-        <p className="text-center text-sm font-semibold text-sky-100">
-          {isMyTurn
-            ? room.mode === "hotseat"
-              ? `${room.turn}'s turn — claim an edge`
-              : "Your turn — claim an edge"
-            : `Waiting on ${room.turn}…`}
-          {room.twinClaimsLeft > 0 ? ` · Twin (${room.twinClaimsLeft} left)` : ""}
-          {room.sparkArmed ? " · Spark armed" : ""}
-        </p>
-      )}
+      <p className="min-h-[1.25rem] text-center text-sm font-semibold text-sky-100">
+        {room.phase === "playing" ? (
+          <>
+            {isMyTurn
+              ? room.mode === "hotseat"
+                ? `${room.turn}'s turn — claim an edge`
+                : "Your turn — claim an edge"
+              : `Waiting on ${room.turn}…`}
+            {room.twinClaimsLeft > 0 ? ` · Twin (${room.twinClaimsLeft} left)` : ""}
+            {room.sparkArmed ? " · Spark armed" : ""}
+          </>
+        ) : (
+          <span className="text-white/40">&nbsp;</span>
+        )}
+      </p>
 
       <DotsBoard
         room={room}
@@ -237,12 +241,12 @@ export function DotsRoom({
         onSelectBox={(i) => void onBox(i)}
       />
 
-      {isMyTurn && room.phase === "playing" && (
+      {room.phase === "playing" && (
         <DotsPowerPanel
-          me={me}
-          active={pendingPower}
+          me={room.mode === "hotseat" ? me : seat}
+          active={isMyTurn ? pendingPower : null}
           onSelect={(id) => void onSelectPower(id)}
-          disabled={room.powerUsedThisTurn}
+          disabled={!isMyTurn || room.powerUsedThisTurn}
         />
       )}
 
