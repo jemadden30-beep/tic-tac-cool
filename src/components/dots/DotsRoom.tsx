@@ -20,6 +20,7 @@ type Api = {
     target: DotsPowerTarget
   ) => Promise<unknown>;
   sendChat: (code: string, playerId: string, text: string) => Promise<unknown>;
+  kickO: (code: string, playerId: string) => Promise<unknown>;
   clearError: () => void;
   error: string | null;
 };
@@ -117,15 +118,29 @@ export function DotsRoom({
             {room.mode === "bot" && room.difficulty ? ` · ${room.difficulty}` : ""}
           </p>
         </div>
-        {room.mode === "online" && (
-          <button
-            type="button"
-            className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"
-            onClick={() => void navigator.clipboard?.writeText(invite)}
-          >
-            Copy invite
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {room.mode === "online" && (
+            <button
+              type="button"
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"
+              onClick={() => void navigator.clipboard?.writeText(invite)}
+            >
+              Copy invite
+            </button>
+          )}
+          {room.mode === "online" &&
+            room.hostId === playerId &&
+            !!o &&
+            (room.phase === "lobby" || !o.connected) && (
+              <button
+                type="button"
+                className="rounded-lg border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-500/25"
+                onClick={() => void api.kickO(room.code, playerId)}
+              >
+                Free P2 seat
+              </button>
+            )}
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -168,17 +183,30 @@ export function DotsRoom({
       {room.phase === "lobby" && (
         <div className="rounded-2xl border border-sky-400/30 bg-sky-500/10 p-4 text-center">
           <p className="mb-3 text-sm text-white/70">
-            Host can start anytime — guest can join mid-game.
+            {room.mode === "online" && o
+              ? "P2 seat is taken. If that was a test device, Free P2 seat so your friend can join."
+              : "Host can start anytime — guest can join mid-game."}
           </p>
-          {(room.hostId === playerId || room.mode !== "online") && (
-            <button
-              type="button"
-              onClick={() => void api.startGame(room.code, playerId)}
-              className="rounded-xl bg-blue-600 px-5 py-3 font-bold hover:bg-blue-500"
-            >
-              Start match
-            </button>
-          )}
+          <div className="flex flex-wrap justify-center gap-2">
+            {(room.hostId === playerId || room.mode !== "online") && (
+              <button
+                type="button"
+                onClick={() => void api.startGame(room.code, playerId)}
+                className="rounded-xl bg-blue-600 px-5 py-3 font-bold hover:bg-blue-500"
+              >
+                Start match
+              </button>
+            )}
+            {room.mode === "online" && room.hostId === playerId && !!o && (
+              <button
+                type="button"
+                onClick={() => void api.kickO(room.code, playerId)}
+                className="rounded-xl border border-amber-400/40 bg-amber-500/15 px-4 py-3 text-sm font-semibold text-amber-100 hover:bg-amber-500/25"
+              >
+                Clear opponent seat
+              </button>
+            )}
+          </div>
         </div>
       )}
 

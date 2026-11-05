@@ -11,6 +11,7 @@ import {
   listPublicRooms,
   listRoomsForPlayer,
   tttCodeTaken,
+  kickOSeat,
 } from "./src/lib/store";
 import { applyPlace, applyPower, startRound, resetSeriesForRematch } from "./src/lib/game";
 import { BOT_ID, chooseBotAction } from "./src/lib/bot";
@@ -23,6 +24,7 @@ import {
   setDotsConnected,
   listDotsRoomsForPlayer,
   dotsCodeTaken,
+  kickDotsOSeat,
 } from "./src/lib/dots/store";
 import {
   claimEdge,
@@ -336,6 +338,21 @@ app.prepare().then(() => {
     );
 
     socket.on(
+      "room:kickO",
+      (payload: { code: string; playerId: string }, cb) => {
+        const result = kickOSeat(payload.code, payload.playerId);
+        if (!result.ok) {
+          cb?.(result);
+          return;
+        }
+        pushSystem(result.room, "Host freed the P2 seat — a new opponent can join.");
+        saveRoom(result.room);
+        io.to(result.room.code).emit("room:state", result.room);
+        cb?.({ ok: true, room: result.room });
+      }
+    );
+
+    socket.on(
       "game:start",
       (payload: { code: string; playerId: string }, cb) => {
         const room = getRoom(payload.code);
@@ -552,6 +569,21 @@ app.prepare().then(() => {
         cb?.({ ok: true, room: fresh });
         io.to(joinedCode).emit("dots:state", fresh);
         maybeDotsBot(io, fresh);
+      }
+    );
+
+    socket.on(
+      "dots:kickO",
+      (payload: { code: string; playerId: string }, cb) => {
+        const result = kickDotsOSeat(payload.code, payload.playerId);
+        if (!result.ok) {
+          cb?.(result);
+          return;
+        }
+        pushDotsSystem(result.room, "Host freed the P2 seat — a new opponent can join.");
+        saveDotsRoom(result.room);
+        io.to(`dots:${result.room.code}`).emit("dots:state", result.room);
+        cb?.({ ok: true, room: result.room });
       }
     );
 

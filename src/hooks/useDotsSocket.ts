@@ -158,6 +158,19 @@ export function useDotsSocket() {
     [emit]
   );
 
+  const kickO = useCallback(
+    async (code: string, playerId: string) => {
+      const res = await emit<{ ok: boolean; room?: DotsRoomState; error?: string }>("dots:kickO", {
+        code,
+        playerId,
+      });
+      if (res.ok && res.room) setRoom(res.room);
+      else if (res.error) setError(res.error);
+      return res;
+    },
+    [emit]
+  );
+
   return {
     connected,
     room,
@@ -175,5 +188,6 @@ export function useDotsSocket() {
     usePower,
     sendChat,
     listMyMatches,
+    kickO,
   };
 }

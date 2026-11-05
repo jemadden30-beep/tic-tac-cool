@@ -166,6 +166,19 @@ export function useSocket() {
     [emit]
   );
 
+  const kickO = useCallback(
+    async (code: string, playerId: string) => {
+      const res = await emit<{ ok: boolean; room?: RoomState; error?: string }>("room:kickO", {
+        code,
+        playerId,
+      });
+      if (res.ok && res.room) setRoom(res.room);
+      else if (res.error) setError(res.error);
+      return res;
+    },
+    [emit]
+  );
+
   return {
     connected,
     room,
@@ -184,5 +197,6 @@ export function useSocket() {
     usePower,
     sendChat,
     listMyMatches,
+    kickO,
   };
 }

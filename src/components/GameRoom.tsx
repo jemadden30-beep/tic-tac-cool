@@ -28,6 +28,7 @@ type SocketApi = {
     target: PowerTarget
   ) => Promise<unknown>;
   sendChat: (code: string, playerId: string, text: string) => Promise<unknown>;
+  kickO: (code: string, playerId: string) => Promise<unknown>;
 };
 
 export function GameRoom({
@@ -213,6 +214,19 @@ export function GameRoom({
             {copied ? "Copied!" : "Copy invite link"}
           </button>
           )}
+          {room.mode === "online" &&
+            room.hostId === playerId &&
+            room.players.some((p) => p.mark === "O") &&
+            (room.phase === "lobby" ||
+              room.players.some((p) => p.mark === "O" && !p.connected)) && (
+              <button
+                type="button"
+                onClick={() => void api.kickO(room.code, playerId)}
+                className="rounded-xl border border-amber-400/40 bg-amber-500/15 px-3 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/25"
+              >
+                Free P2 seat
+              </button>
+            )}
           <Link
             href="/"
             className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold hover:bg-white/10"
@@ -314,7 +328,9 @@ export function GameRoom({
                     ? "Bot is ready — start when you want."
                     : room.mode === "online" && room.players.length < 2
                       ? "Share the invite anytime — you can start and play before they open it."
-                      : "Ready when you are."}
+                      : room.mode === "online" && room.players.some((p) => p.mark === "O")
+                        ? "P2 seat is taken. If that was a test device, Free P2 seat so your friend can join."
+                        : "Ready when you are."}
                 </p>
                 {(room.hostId === playerId || room.mode === "hotseat" || room.mode === "bot") && (
                   <button
@@ -325,6 +341,17 @@ export function GameRoom({
                     Start match
                   </button>
                 )}
+                {room.mode === "online" &&
+                  room.hostId === playerId &&
+                  room.players.some((p) => p.mark === "O") && (
+                    <button
+                      type="button"
+                      onClick={() => void api.kickO(room.code, playerId)}
+                      className="block mx-auto rounded-xl border border-amber-400/40 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/25"
+                    >
+                      Clear opponent seat
+                    </button>
+                  )}
               </div>
             )}
           </div>

@@ -73,6 +73,12 @@ export function dotsCodeTaken(code: string): boolean {
   return Boolean(rooms[code.toUpperCase()]);
 }
 
+function fullDotsRoomError(room: DotsRoomState): string {
+  const p1 = room.players.find((p) => p.mark === "X");
+  const p2 = room.players.find((p) => p.mark === "O");
+  return `Room is full (P1: ${p1?.name || "—"}, P2: ${p2?.name || "—"}). Open this link on the same device you used before, or ask the host to free the P2 seat.`;
+}
+
 export function joinDotsRoom(
   code: string,
   playerId: string,
@@ -100,29 +106,61 @@ export function joinDotsRoom(
     };
   }
 
-  if (room.mode === "online" && room.players.filter((p) => p.id !== DOTS_BOT_ID).length < 2) {
-    room.players.push({
-      id: playerId,
-      name,
-      mark: "O",
-      energy: 50,
-      usedPowers: [],
-      boxes: 0,
-      wins: 0,
-      losses: 0,
-      streak: 0,
-      connected: true,
-      silenced: false,
-    });
-    saveDotsRoom(room);
-    return { ok: true, room };
+  if (room.mode === "online") {
+    const humans = room.players.filter((p) => p.id !== DOTS_BOT_ID);
+    // Reclaim disconnected O (lobby or mid-game) — never steal connected O or X/host
+    const oSeat = humans.find((p) => p.mark === "O");
+    if (oSeat && oSeat.connected === false) {
+      oSeat.id = playerId;
+      oSeat.name = name || oSeat.name;
+      oSeat.connected = true;
+      saveDotsRoom(room);
+      return { ok: true, room };
+    }
+
+    if (humans.length < 2) {
+      room.players.push({
+        id: playerId,
+        name,
+        mark: "O",
+        energy: 50,
+        usedPowers: [],
+        boxes: 0,
+        wins: 0,
+        losses: 0,
+        streak: 0,
+        connected: true,
+        silenced: false,
+      });
+      saveDotsRoom(room);
+      return { ok: true, room };
+    }
   }
 
   return {
     ok: false,
-    error:
-      "Room is full. Reopen this invite on the same device/browser you used before to pick up where you left off.",
+    error: fullDotsRoomError(room),
   };
+}
+
+/** Host frees the O seat so a new guest can join. Lobby always; mid-game only if O is disconnected. */
+export function kickDotsOSeat(
+  code: string,
+  hostPlayerId: string
+): { ok: true; room: DotsRoomState } | { ok: false; error: string } {
+  const room = getDotsRoom(code);
+  if (!room) return { ok: false, error: "Room not found" };
+  if (room.mode !== "online") return { ok: false, error: "Only online rooms have a freeable P2 seat" };
+  if (room.hostId !== hostPlayerId) return { ok: false, error: "Only host can free the P2 seat" };
+  const oIdx = room.players.findIndex((p) => p.mark === "O" && p.id !== DOTS_BOT_ID);
+  if (oIdx < 0) return { ok: false, error: "No P2 seat to free" };
+  const o = room.players[oIdx];
+  if (room.phase !== "lobby" && o.connected) {
+    return { ok: false, error: "P2 is still connected — wait until they leave, or stay in lobby" };
+  }
+  room.players.splice(oIdx, 1);
+  saveDotsRoom(room);
+  return { ok: true, room };
 }
 
 export function setDotsConnected(code: string, playerId: string, connected: boolean) {

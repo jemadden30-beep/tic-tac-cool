@@ -109,6 +109,12 @@ export function listPublicRooms(): PublicRoom[] {
     .slice(0, 20);
 }
 
+function fullRoomError(room: RoomState): string {
+  const p1 = room.players.find((p) => p.mark === "X");
+  const p2 = room.players.find((p) => p.mark === "O");
+  return `Room is full (P1: ${p1?.name || "—"}, P2: ${p2?.name || "—"}). Open this link on the same device you used before, or ask the host to free the P2 seat.`;
+}
+
 export function joinRoom(
   code: string,
   playerId: string,
@@ -140,32 +146,63 @@ export function joinRoom(
     }
   }
 
-  // First-time O seat (lobby only) — never steal a seat after someone claimed it
-  if (room.mode === "online" && room.players.length < 2) {
-    room.players.push({
-      id: playerId,
-      name,
-      mark: "O",
-      powers: [],
-      energy: 50,
-      usedPowers: [],
-      wins: 0,
-      losses: 0,
-      streak: 0,
-      connected: true,
-      shieldIndex: null,
-      frozen: false,
-      silenced: false,
-    });
-    saveRoom(room);
-    return { ok: true, room };
+  if (room.mode === "online") {
+    // Reclaim a disconnected O seat (lobby or mid-game) — never steal a connected O or X/host
+    const oSeat = room.players.find((p) => p.mark === "O");
+    if (oSeat && oSeat.connected === false) {
+      oSeat.id = playerId;
+      oSeat.name = name || oSeat.name;
+      oSeat.connected = true;
+      saveRoom(room);
+      return { ok: true, room };
+    }
+
+    // First-time O seat — never steal a seat after someone claimed it
+    if (room.players.length < 2) {
+      room.players.push({
+        id: playerId,
+        name,
+        mark: "O",
+        powers: [],
+        energy: 50,
+        usedPowers: [],
+        wins: 0,
+        losses: 0,
+        streak: 0,
+        connected: true,
+        shieldIndex: null,
+        frozen: false,
+        silenced: false,
+      });
+      saveRoom(room);
+      return { ok: true, room };
+    }
   }
 
   return {
     ok: false,
-    error:
-      "Room is full. Reopen this invite on the same device/browser you used before to pick up where you left off.",
+    error: fullRoomError(room),
   };
+}
+
+/** Host frees the O seat so a new guest can join. Lobby always; mid-game only if O is disconnected. */
+export function kickOSeat(
+  code: string,
+  hostPlayerId: string
+): { ok: true; room: RoomState } | { ok: false; error: string } {
+  const room = getRoom(code);
+  if (!room) return { ok: false, error: "Room not found" };
+  if (room.mode !== "online") return { ok: false, error: "Only online rooms have a freeable P2 seat" };
+  if (room.hostId !== hostPlayerId) return { ok: false, error: "Only host can free the P2 seat" };
+  const oIdx = room.players.findIndex((p) => p.mark === "O");
+  if (oIdx < 0) return { ok: false, error: "No P2 seat to free" };
+  const o = room.players[oIdx];
+  if (room.phase !== "lobby" && o.connected) {
+    return { ok: false, error: "P2 is still connected — wait until they leave, or stay in lobby" };
+  }
+  room.players.splice(oIdx, 1);
+  saveRoom(room);
+  return { ok: true, room };
 }
 
 export function setConnected(code: string, playerId: string, connected: boolean) {
