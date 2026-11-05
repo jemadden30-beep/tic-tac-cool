@@ -10,7 +10,7 @@ import {
   setConnected,
   listPublicRooms,
 } from "./src/lib/store";
-import { applyPlace, applyPower, startRound } from "./src/lib/game";
+import { applyPlace, applyPower, startRound, resetSeriesForRematch } from "./src/lib/game";
 import { BOT_ID, chooseBotAction } from "./src/lib/bot";
 import type { BotDifficulty, PowerId, PowerTarget, RoomState } from "./src/lib/types";
 
@@ -53,7 +53,8 @@ function runBotTurn(io: IOServer, code: string) {
   botTimers.delete(code);
   const room = getRoom(code);
   if (!room || room.mode !== "bot" || room.phase !== "playing") return;
-  if (room.turn !== "O") return;
+  const bot = room.players.find((p) => p.id === BOT_ID);
+  if (!bot || room.turn !== bot.mark) return;
 
   const action = chooseBotAction(room);
   if (!action) return;
@@ -84,13 +85,15 @@ function runBotTurn(io: IOServer, code: string) {
   broadcast(io, room);
 
   // Bot may still have the turn (double place) or used power that didn't consume
-  if (room.mode === "bot" && room.phase === "playing" && room.turn === "O") {
+  const botSeat = room.players.find((p) => p.id === BOT_ID);
+  if (room.mode === "bot" && room.phase === "playing" && botSeat && room.turn === botSeat.mark) {
     scheduleBot(io, room.code, room.doublePending ? 420 : 700);
   }
 }
 
 function maybeBotAfterHuman(io: IOServer, room: RoomState) {
-  if (room.mode === "bot" && room.phase === "playing" && room.turn === "O") {
+  const bot = room.players.find((p) => p.id === BOT_ID);
+  if (room.mode === "bot" && room.phase === "playing" && bot && room.turn === bot.mark) {
     scheduleBot(io, room.code);
   }
 }
@@ -260,10 +263,16 @@ app.prepare().then(() => {
             p.losses = 0;
             p.streak = 0;
           });
+          resetSeriesForRematch(room);
         }
         startRound(room);
         if (room.mode === "bot") {
-          pushSystem(room, "New round — you are X, bot is O.");
+          const human = room.players.find((p) => p.id !== BOT_ID);
+          const opener = room.players.find((p) => p.mark === "X");
+          pushSystem(
+            room,
+            `New round — ${opener?.name || "X"} opens (you are ${human?.mark || "?"}).`
+          );
         }
         saveRoom(room);
         io.to(room.code).emit("room:state", room);

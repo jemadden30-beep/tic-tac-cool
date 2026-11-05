@@ -25,12 +25,12 @@ export function Board({
     (room.mode === "hotseat" || (meMark !== null && meMark === room.turn));
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex flex-col items-center gap-2">
       <div
-        className="grid gap-2 sm:gap-3"
+        className="grid gap-1.5 sm:gap-2"
         style={{
           gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))`,
-          width: size === 3 ? "min(92vw, 360px)" : "min(92vw, 420px)",
+          width: size === 3 ? "min(72vw, 260px)" : "min(78vw, 300px)",
         }}
       >
         {room.board.map((cell, i) => {
@@ -95,7 +95,7 @@ function BoardCell({
       whileTap={interactive ? { scale: 0.92 } : undefined}
       onClick={onClick}
       disabled={!interactive}
-      className={`relative aspect-square rounded-2xl border text-4xl font-black transition sm:text-5xl
+      className={`relative aspect-square rounded-xl border text-2xl font-black transition sm:rounded-2xl sm:text-4xl
         ${winning ? "border-sky-300 bg-sky-400/25 shadow-[0_0_24px_rgba(56,189,248,0.55)]" : "border-white/10 bg-white/5"}
         ${interactive ? "hover:border-sky-400/70 hover:bg-blue-500/10 cursor-pointer" : "cursor-default"}
         ${shielded ? "ring-2 ring-sky-400/90" : ""}

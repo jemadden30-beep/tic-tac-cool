@@ -81,6 +81,8 @@ export interface RoomState {
   createdAt: number;
   updatedAt: number;
   doublePending: boolean;
+  /** Increments each round in a series; used to alternate who is X */
+  roundIndex: number;
 }
 
 export interface PublicRoom {

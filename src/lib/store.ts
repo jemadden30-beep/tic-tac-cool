@@ -58,6 +58,9 @@ export function getRoom(code: string): RoomState | undefined {
   if (room && room.difficulty === undefined) {
     (room as RoomState).difficulty = room.mode === "bot" ? "medium" : null;
   }
+  if (room && typeof room.roundIndex !== "number") {
+    room.roundIndex = 0;
+  }
   return room;
 }
 

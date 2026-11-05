@@ -11,6 +11,7 @@ Power-up tic-tac-toe with online multiplayer, hotseat, chat, series scoring, and
 - **In-game chat**
 - **Record keeper** — wins, losses, streaks per seat; career stats in `localStorage`
 - **First-to-N** series (adjustable in lobby / between rounds by the host)
+- **Alternate openings** — whoever was X last round becomes O next (and vice versa)
 - **Smooth Framer Motion** FX when powers fire
 
 ## Power moves
@@ -43,6 +44,12 @@ Production:
 npm run build
 npm start
 ```
+
+## Install (PWA)
+
+- **Android / Chrome:** open the site → **Install app** banner, or browser menu → **Install app** / **Add to Home screen**.
+- **iPhone / Safari:** Share → **Add to Home Screen**.
+- Offline shell is cached; multiplayer/bot play still needs network.
 
 ## Solo vs Bot
 

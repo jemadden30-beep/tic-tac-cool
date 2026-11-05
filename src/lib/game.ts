@@ -69,6 +69,16 @@ function isProtected(room: RoomState, index: number): boolean {
 }
 
 export function startRound(room: RoomState) {
+  // Alternate who is X each round: X always opens, marks swap after round 0
+  if (typeof room.roundIndex !== "number") room.roundIndex = 0;
+  if (room.roundIndex > 0 && room.players.length >= 2) {
+    const a = room.players[0];
+    const b = room.players[1];
+    const tmp = a.mark;
+    a.mark = b.mark;
+    b.mark = tmp;
+  }
+
   room.boardSize = 3;
   room.board = emptyBoard(3);
   room.turn = "X";
@@ -83,6 +93,7 @@ export function startRound(room: RoomState) {
     p.shieldIndex = null;
     p.frozen = false;
   }
+  room.roundIndex += 1;
   room.updatedAt = Date.now();
 }
 
@@ -384,6 +395,7 @@ export function createRoomState(opts: {
     createdAt: Date.now(),
     updatedAt: Date.now(),
     doublePending: false,
+    roundIndex: 0,
   };
 
   if (opts.mode === "hotseat") {
@@ -424,4 +436,12 @@ export function createRoomState(opts: {
   }
 
   return room;
+}
+
+
+export function resetSeriesForRematch(room: RoomState) {
+  room.roundIndex = 0;
+  // Host / first seat is X again
+  if (room.players[0]) room.players[0].mark = "X";
+  if (room.players[1]) room.players[1].mark = "O";
 }

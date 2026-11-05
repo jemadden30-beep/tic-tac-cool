@@ -27,7 +27,7 @@ export function Chat({
   };
 
   return (
-    <div className="flex h-72 flex-col rounded-2xl border border-white/10 bg-black/30">
+    <div className="flex h-40 flex-col sm:h-72 rounded-2xl border border-white/10 bg-black/30">
       <div className="border-b border-white/10 px-3 py-2 text-sm font-semibold text-sky-200">
         Chat
       </div>

@@ -307,9 +307,11 @@ function buildPowerAction(
 export function chooseBotAction(room: RoomState): BotAction | null {
   if (room.phase !== "playing") return null;
   const difficulty = room.difficulty || "medium";
-  const me = "O";
-  const bot = playerByMark(room, me);
-  if (!bot || room.turn !== me) return null;
+  const botPlayer = room.players.find((p) => p.id === BOT_ID);
+  if (!botPlayer) return null;
+  const me = botPlayer.mark;
+  const bot = botPlayer;
+  if (room.turn !== me) return null;
   if (bot.frozen) {
     // server will clear on failed place — pick a place anyway
   }

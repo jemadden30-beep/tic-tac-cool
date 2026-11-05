@@ -152,7 +152,7 @@ export function GameRoom({
     (room.mode === "hotseat" || room.mode === "bot" || room.hostId === playerId);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-3 py-4 sm:px-6">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-3 py-2 sm:gap-4 sm:px-6 sm:py-4">
       <PowerFX animation={api.animation} onDone={api.clearAnimation} />
 
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -160,7 +160,7 @@ export function GameRoom({
           <p className="text-xs uppercase tracking-[0.25em] text-sky-300/90">
             Tic Tac Cool
           </p>
-          <h1 className="text-2xl font-black sm:text-3xl">
+          <h1 className="text-xl font-black sm:text-3xl">
             Room <span className="text-sky-300">{room.code}</span>
           </h1>
           <p className="text-sm text-white/50">
@@ -202,9 +202,9 @@ export function GameRoom({
       )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-4">
-          <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 p-4 sm:p-6">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm">
+        <div className="space-y-2 sm:space-y-4">
+          <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 p-3 sm:p-6">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm sm:mb-4">
               <StatusBanner room={room} meId={playerId} />
               {selectedPower && (
                 <span className="rounded-full bg-blue-500/30 px-3 py-1 text-sky-100">
@@ -348,11 +348,13 @@ function StatusBanner({ room, meId }: { room: RoomState; meId: string }) {
   if (room.phase === "lobby") return <span className="text-white/60">Lobby</span>;
   if (room.phase !== "playing") return <span className="text-sky-200">Round paused</span>;
   const turnPlayer = room.players.find((p) => p.mark === room.turn);
+  const opener = room.players.find((p) => p.mark === "X");
   const mine =
     room.mode === "hotseat" || room.players.find((p) => p.id === meId)?.mark === room.turn;
   return (
     <span className={mine ? "font-bold text-emerald-300" : "text-white/70"}>
       {mine ? "Your turn" : `Waiting on ${turnPlayer?.name || room.turn}`} · {room.turn}
+      {opener ? ` · ${opener.name} opened` : ""}
       {turnPlayer?.frozen ? " (frozen next)" : ""}
     </span>
   );
