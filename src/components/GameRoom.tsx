@@ -189,6 +189,20 @@ export function GameRoom({
 
   const router = useRouter();
 
+  async function onFreeSeat() {
+    const o = room.players.find((p) => p.mark === "O");
+    if (
+      o &&
+      (o.connected || room.phase !== "lobby") &&
+      !window.confirm(
+        `Free the P2 seat? ${o.name} ${o.connected ? "is connected" : "is in this match"} and will be removed so someone else can join.`
+      )
+    ) {
+      return;
+    }
+    await api.kickO(room.code, playerId);
+  }
+
   async function onDeleteRoom() {
     if (
       !window.confirm(
@@ -249,12 +263,10 @@ export function GameRoom({
           )}
           {room.mode === "online" &&
             room.hostId === playerId &&
-            room.players.some((p) => p.mark === "O") &&
-            (room.phase === "lobby" ||
-              room.players.some((p) => p.mark === "O" && !p.connected)) && (
+            room.players.some((p) => p.mark === "O") && (
               <button
                 type="button"
-                onClick={() => void api.kickO(room.code, playerId)}
+                onClick={() => void onFreeSeat()}
                 className="rounded-xl border border-amber-400/40 bg-amber-500/15 px-3 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/25"
               >
                 Free P2 seat
@@ -386,7 +398,7 @@ export function GameRoom({
                   room.players.some((p) => p.mark === "O") && (
                     <button
                       type="button"
-                      onClick={() => void api.kickO(room.code, playerId)}
+                      onClick={() => void onFreeSeat()}
                       className="block mx-auto rounded-xl border border-amber-400/40 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/25"
                     >
                       Clear opponent seat

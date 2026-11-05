@@ -3,6 +3,7 @@
 import { useEffect, use, useRef } from "react";
 import Link from "next/link";
 import { usePlayer } from "@/hooks/usePlayer";
+import { JoinPrompt } from "@/components/JoinPrompt";
 import { useSocket } from "@/hooks/useSocket";
 import { GameRoom } from "@/components/GameRoom";
 
@@ -20,7 +21,7 @@ function rememberMatchCode(code: string) {
 
 export default function RoomPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
-  const { playerId, name, ready } = usePlayer();
+  const { playerId, name, setName, ready } = usePlayer();
   const api = useSocket();
   const sawRoom = useRef(false);
   if (api.room) sawRoom.current = true;
@@ -51,6 +52,25 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
           </Link>
         </div>
       </main>
+    );
+  }
+
+  const seated = api.room.players.some((p) => p.id === playerId);
+  if (api.room.mode === "online" && !seated) {
+    return (
+      <JoinPrompt
+        code={api.room.code}
+        gameLabel="Tic Tac Toe"
+        players={api.room.players}
+        defaultName={name}
+        backHref="/"
+        error={api.error}
+        onRetry={() => void api.syncRoom({ code, playerId, name })}
+        onJoin={async (nick) => {
+          setName(nick);
+          await api.joinRoom({ code, playerId, name: nick });
+        }}
+      />
     );
   }
 

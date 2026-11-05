@@ -14,7 +14,12 @@ function loadAll(): Record<string, DotsRoomState> {
   ensureDir();
   if (!fs.existsSync(STORE_FILE)) return {};
   try {
-    return JSON.parse(fs.readFileSync(STORE_FILE, "utf8"));
+    const data = JSON.parse(fs.readFileSync(STORE_FILE, "utf8"));
+    // Nobody has a live socket at process boot — never keep stale connected:true.
+    for (const room of Object.values(data) as { players?: { id: string; connected: boolean }[] }[]) {
+      for (const pl of room.players || []) pl.connected = pl.id === DOTS_BOT_ID ? true : false;
+    }
+    return data;
   } catch {
     return {};
   }
@@ -143,11 +148,11 @@ export function joinDotsRoom(
   };
 }
 
-/** Host frees the O seat so a new guest can join. Lobby always; mid-game only if O is disconnected. */
+/** Host frees the O seat so a new guest can join. Allowed anytime in online rooms. */
 export function kickDotsOSeat(
   code: string,
   hostPlayerId: string
-): { ok: true; room: DotsRoomState } | { ok: false; error: string } {
+): { ok: true; room: DotsRoomState; kickedId: string } | { ok: false; error: string } {
   const room = getDotsRoom(code);
   if (!room) return { ok: false, error: "Room not found" };
   if (room.mode !== "online") return { ok: false, error: "Only online rooms have a freeable P2 seat" };
@@ -155,12 +160,10 @@ export function kickDotsOSeat(
   const oIdx = room.players.findIndex((p) => p.mark === "O" && p.id !== DOTS_BOT_ID);
   if (oIdx < 0) return { ok: false, error: "No P2 seat to free" };
   const o = room.players[oIdx];
-  if (room.phase !== "lobby" && o.connected) {
-    return { ok: false, error: "P2 is still connected — wait until they leave, or stay in lobby" };
-  }
+  // Host may always free P2 (lobby or mid-game) — stale in-app tabs must never trap the host.
   room.players.splice(oIdx, 1);
   saveDotsRoom(room);
-  return { ok: true, room };
+  return { ok: true, room, kickedId: o.id };
 }
 
 /** Any participant may permanently delete the room from storage. */

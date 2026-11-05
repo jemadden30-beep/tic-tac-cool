@@ -74,12 +74,12 @@ export function useDotsSocket() {
   const joinRoom = useCallback(
     async (opts: { code: string; playerId: string; name: string }) => {
       setError(null);
-      const res = await emit<{ ok: boolean; room?: DotsRoomState; error?: string }>(
+      const res = await emit<{ ok: boolean; room?: DotsRoomState; error?: string; redirect?: string }>(
         "dots:join",
         { ...opts, code: opts.code.toUpperCase() }
       );
       if (res.ok && res.room) setRoom(res.room);
-      else setError(res.error || "Failed to join");
+      else if (!res.redirect) setError(res.error || "Failed to join");
       return res;
     },
     [emit]
@@ -87,12 +87,14 @@ export function useDotsSocket() {
 
   const syncRoom = useCallback(
     async (opts: { code: string; playerId: string; name?: string }) => {
-      const res = await emit<{ ok: boolean; room?: DotsRoomState; error?: string }>(
+      const res = await emit<{ ok: boolean; room?: DotsRoomState; error?: string; joined?: boolean; canJoin?: boolean }>(
         "dots:sync",
         { ...opts, code: opts.code.toUpperCase() }
       );
-      if (res.ok && res.room) setRoom(res.room);
-      else setError(res.error || "Room not found");
+      if (res.ok && res.room) {
+        setRoom(res.room);
+        setError(null);
+      } else setError(res.error || "Room not found");
       return res;
     },
     [emit]

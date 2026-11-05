@@ -112,6 +112,8 @@ export default function DotsHomePage() {
     if (res.ok && res.room) {
       remember(res.room.code);
       router.push(`/dots/room/${res.room.code}`);
+    } else if (res.redirect) {
+      router.push(res.redirect);
     }
   }
 

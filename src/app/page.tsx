@@ -122,6 +122,8 @@ export default function HomePage() {
     if (res.ok && res.room) {
       rememberMatchCode(res.room.code);
       router.push(`/room/${res.room.code}`);
+    } else if (res.redirect) {
+      router.push(res.redirect);
     }
   }
 

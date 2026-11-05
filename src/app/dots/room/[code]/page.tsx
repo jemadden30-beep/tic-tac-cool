@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { usePlayer } from "@/hooks/usePlayer";
+import { JoinPrompt } from "@/components/JoinPrompt";
 import { useDotsSocket } from "@/hooks/useDotsSocket";
 import { DotsRoom } from "@/components/dots/DotsRoom";
 
@@ -22,7 +23,7 @@ function rememberMatchCode(code: string) {
 export default function DotsRoomPage() {
   const params = useParams();
   const code = String(params.code || "").toUpperCase();
-  const { playerId, name, ready } = usePlayer();
+  const { playerId, name, setName, ready } = usePlayer();
   const api = useDotsSocket();
   const sawRoom = useRef(false);
   if (api.room) sawRoom.current = true;
@@ -52,6 +53,25 @@ export default function DotsRoomPage() {
           Back to Dots
         </Link>
       </main>
+    );
+  }
+
+  const seated = api.room.players.some((p) => p.id === playerId);
+  if (api.room.mode === "online" && !seated) {
+    return (
+      <JoinPrompt
+        code={api.room.code}
+        gameLabel="Dots & Boxes"
+        players={api.room.players}
+        defaultName={name}
+        backHref="/dots"
+        error={api.error}
+        onRetry={() => void api.syncRoom({ code, playerId, name })}
+        onJoin={async (nick) => {
+          setName(nick);
+          await api.joinRoom({ code, playerId, name: nick });
+        }}
+      />
     );
   }
 

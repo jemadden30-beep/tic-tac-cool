@@ -191,9 +191,60 @@ app.prepare().then(() => {
     path: "/socket.io",
   });
 
+
+// ---- Live socket truth: channel -> playerId -> socket ids ----
+const liveSeats = new Map<string, Map<string, Set<string>>>();
+function addLive(channel: string, pid: string, sid: string) {
+  let m = liveSeats.get(channel);
+  if (!m) liveSeats.set(channel, (m = new Map()));
+  let set = m.get(pid);
+  if (!set) m.set(pid, (set = new Set()));
+  set.add(sid);
+}
+function removeLive(channel: string, pid: string, sid: string): boolean {
+  const set = liveSeats.get(channel)?.get(pid);
+  if (!set) return false;
+  set.delete(sid);
+  return set.size > 0;
+}
+function isLive(channel: string, pid: string): boolean {
+  return (liveSeats.get(channel)?.get(pid)?.size ?? 0) > 0;
+}
+/** Make room.players[].connected match real sockets (bot always connected). */
+function reconcileLive<T extends { players: { id: string; connected: boolean }[] }>(
+  channel: string,
+  room: T,
+  botId: string
+): boolean {
+  let changed = false;
+  for (const p of room.players) {
+    const live = p.id === botId ? true : isLive(channel, p.id);
+    if (p.connected !== live) {
+      p.connected = live;
+      changed = true;
+    }
+  }
+  return changed;
+}
+function seatOpen(room: { mode: string; players: { id: string; mark: string; connected: boolean }[] }, botId: string): boolean {
+  if (room.mode !== "online") return false;
+  const humans = room.players.filter((p) => p.id !== botId);
+  const o = humans.find((p) => p.mark === "O");
+  return humans.length < 2 || (!!o && !o.connected);
+}
+
   io.on("connection", (socket) => {
     let joinedCode: string | null = null;
     let playerId: string | null = null;
+    const bindSeat = (channel: string, pid: string) => {
+      if (joinedCode && playerId && (joinedCode !== channel || playerId !== pid)) {
+        removeLive(joinedCode, playerId, socket.id);
+      }
+      joinedCode = channel;
+      playerId = pid;
+      addLive(channel, pid, socket.id);
+      socket.join(channel);
+    };
 
     socket.on("rooms:list", (cb) => {
       cb?.({ rooms: listPublicRooms() });
@@ -234,9 +285,7 @@ app.prepare().then(() => {
           firstTo: Math.min(9, Math.max(1, payload.firstTo || 3)),
           difficulty: payload.difficulty,
         });
-        joinedCode = room.code;
-        playerId = payload.playerId;
-        socket.join(room.code);
+        bindSeat(room.code, payload.playerId);
 
         if (mode === "bot") {
           pushSystem(
@@ -256,6 +305,14 @@ app.prepare().then(() => {
     socket.on(
       "room:join",
       (payload: { code: string; playerId: string; name: string }, cb) => {
+        const pre = getRoom(payload.code);
+        if (!pre) {
+          const other = getDotsRoom(payload.code);
+          if (other) {
+            cb?.({ ok: false, error: "That code is a Dots & Boxes room", redirect: `/dots/room/${other.code}` });
+            return;
+          }
+        } else if (reconcileLive(pre.code, pre, BOT_ID)) saveRoom(pre);
         const result = joinRoom(
           payload.code,
           payload.playerId,
@@ -265,10 +322,8 @@ app.prepare().then(() => {
           cb?.(result);
           return;
         }
-        joinedCode = result.room.code;
-        playerId = payload.playerId;
-        socket.join(result.room.code);
-        cb?.({ ok: true, room: result.room });
+        bindSeat(result.room.code, payload.playerId);
+        cb?.({ ok: true, room: result.room, joined: true });
         io.to(result.room.code).emit("room:state", result.room);
       }
     );
@@ -281,26 +336,23 @@ app.prepare().then(() => {
           cb?.({ ok: false, error: "Room not found" });
           return;
         }
+        const channel = room.code.toUpperCase();
         const known = room.players.some((p) => p.id === payload.playerId);
         if (!known) {
-          const joined = joinRoom(
-            payload.code,
-            payload.playerId,
-            payload.name || "Player"
-          );
-          if (!joined.ok) {
-            cb?.(joined);
-            return;
-          }
-        } else {
-          setConnected(room.code, payload.playerId, true);
+          // Never auto-claim a seat on sync (link previews / in-app browsers stole P2).
+          if (reconcileLive(channel, room, BOT_ID)) saveRoom(room);
+          if (room.mode === "bot") return cb?.({ ok: false, error: "Solo bot game — create your own" });
+          if (room.mode === "hotseat")
+            return cb?.({ ok: false, error: "Hotseat is tied to the original device. Use the same browser to resume." });
+          socket.join(channel); // observe only
+          cb?.({ ok: true, room, joined: false, canJoin: seatOpen(room, BOT_ID) });
+          return;
         }
-        joinedCode = room.code.toUpperCase();
-        playerId = payload.playerId;
-        socket.join(joinedCode);
-        const fresh = getRoom(joinedCode)!;
-        cb?.({ ok: true, room: fresh });
-        io.to(joinedCode).emit("room:state", fresh);
+        bindSeat(channel, payload.playerId);
+        setConnected(room.code, payload.playerId, true);
+        const fresh = getRoom(channel)!;
+        cb?.({ ok: true, room: fresh, joined: true });
+        io.to(channel).emit("room:state", fresh);
         maybeBotAfterHuman(io, fresh);
       }
     );
@@ -347,6 +399,7 @@ app.prepare().then(() => {
           cb?.(result);
           return;
         }
+        io.to(result.room.code).emit("room:kicked", { code: result.room.code, playerId: result.kickedId });
         pushSystem(result.room, "Host freed the P2 seat — a new opponent can join.");
         saveRoom(result.room);
         io.to(result.room.code).emit("room:state", result.room);
@@ -527,9 +580,7 @@ app.prepare().then(() => {
           },
           (code) => tttCodeTaken(code)
         );
-        joinedCode = `dots:${room.code}`;
-        playerId = payload.playerId;
-        socket.join(joinedCode);
+        bindSeat(`dots:${room.code}`, payload.playerId);
 
         if (mode === "bot") {
           pushDotsSystem(room, `Solo Dots vs bot — first to ${room.firstTo}.`);
@@ -538,7 +589,7 @@ app.prepare().then(() => {
         }
 
         cb?.({ ok: true, room });
-        io.to(joinedCode).emit("dots:state", room);
+        io.to(`dots:${room.code}`).emit("dots:state", room);
         maybeDotsBot(io, room);
       }
     );
@@ -546,6 +597,14 @@ app.prepare().then(() => {
     socket.on(
       "dots:join",
       (payload: { code: string; playerId: string; name: string }, cb) => {
+        const pre = getDotsRoom(payload.code);
+        if (!pre) {
+          const other = getRoom(payload.code);
+          if (other) {
+            cb?.({ ok: false, error: "That code is a Tic Tac Toe room", redirect: `/room/${other.code}` });
+            return;
+          }
+        } else if (reconcileLive(`dots:${pre.code}`, pre, DOTS_BOT_ID)) saveDotsRoom(pre);
         const result = joinDotsRoom(
           payload.code,
           payload.playerId,
@@ -555,11 +614,9 @@ app.prepare().then(() => {
           cb?.(result);
           return;
         }
-        joinedCode = `dots:${result.room.code}`;
-        playerId = payload.playerId;
-        socket.join(joinedCode);
-        cb?.({ ok: true, room: result.room });
-        io.to(joinedCode).emit("dots:state", result.room);
+        bindSeat(`dots:${result.room.code}`, payload.playerId);
+        cb?.({ ok: true, room: result.room, joined: true });
+        io.to(`dots:${result.room.code}`).emit("dots:state", result.room);
       }
     );
 
@@ -571,26 +628,22 @@ app.prepare().then(() => {
           cb?.({ ok: false, error: "Room not found" });
           return;
         }
+        const channel = `dots:${room.code.toUpperCase()}`;
         const known = room.players.some((p) => p.id === payload.playerId);
         if (!known) {
-          const joined = joinDotsRoom(
-            payload.code,
-            payload.playerId,
-            payload.name || "Player"
-          );
-          if (!joined.ok) {
-            cb?.(joined);
-            return;
-          }
-        } else {
-          setDotsConnected(room.code, payload.playerId, true);
+          if (reconcileLive(channel, room, DOTS_BOT_ID)) saveDotsRoom(room);
+          if (room.mode === "bot") return cb?.({ ok: false, error: "Solo bot game — create your own" });
+          if (room.mode === "hotseat")
+            return cb?.({ ok: false, error: "Hotseat is tied to the original device. Use the same browser to resume." });
+          socket.join(channel); // observe only
+          cb?.({ ok: true, room, joined: false, canJoin: seatOpen(room, DOTS_BOT_ID) });
+          return;
         }
-        joinedCode = `dots:${room.code.toUpperCase()}`;
-        playerId = payload.playerId;
-        socket.join(joinedCode);
+        bindSeat(channel, payload.playerId);
+        setDotsConnected(room.code, payload.playerId, true);
         const fresh = getDotsRoom(room.code)!;
-        cb?.({ ok: true, room: fresh });
-        io.to(joinedCode).emit("dots:state", fresh);
+        cb?.({ ok: true, room: fresh, joined: true });
+        io.to(channel).emit("dots:state", fresh);
         maybeDotsBot(io, fresh);
       }
     );
@@ -603,6 +656,7 @@ app.prepare().then(() => {
           cb?.(result);
           return;
         }
+        io.to(`dots:${result.room.code}`).emit("dots:kicked", { code: result.room.code, playerId: result.kickedId });
         pushDotsSystem(result.room, "Host freed the P2 seat — a new opponent can join.");
         saveDotsRoom(result.room);
         io.to(`dots:${result.room.code}`).emit("dots:state", result.room);
@@ -744,6 +798,7 @@ app.prepare().then(() => {
 
     socket.on("disconnect", () => {
       if (joinedCode && playerId) {
+        if (removeLive(joinedCode, playerId, socket.id)) return; // another tab still live
         if (joinedCode.startsWith("dots:")) {
           const code = joinedCode.slice(5);
           setDotsConnected(code, playerId, false);
