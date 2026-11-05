@@ -76,10 +76,10 @@ npm start
 
 ## Async online play
 
-Online rooms are **turn-based async**. Only one player needs to be connected to take their turn.
+Online rooms are **turn-based async**. The host can **Start** and play before the guest opens the invite —
+when they join, they see the board and turn as it is. Only one player needs to be connected to take their turn.
 Leave anytime — reopen the same `/room/CODE` link on the **same browser/device** to resume
 exactly where you left off (board, energy, used powers, whose turn, series score, chat).
-Opponent presence is never required for moves.
 
 ## Invite flow
 

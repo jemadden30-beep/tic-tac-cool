@@ -249,9 +249,7 @@ app.prepare().then(() => {
       (payload: { code: string; playerId: string }, cb) => {
         const room = getRoom(payload.code);
         if (!room) return cb?.({ ok: false, error: "Missing room" });
-        if (room.mode === "online" && room.players.length < 2) {
-          return cb?.({ ok: false, error: "Need 2 players" });
-        }
+        // Host may start before the guest opens the invite (async)
         if (
           room.hostId !== payload.playerId &&
           room.mode === "online"

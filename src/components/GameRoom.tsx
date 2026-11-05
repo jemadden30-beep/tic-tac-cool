@@ -311,15 +311,14 @@ export function GameRoom({
                   {room.mode === "bot"
                     ? "Bot is ready — start when you want."
                     : room.mode === "online" && room.players.length < 2
-                      ? "Waiting for opponent — share the invite link."
+                      ? "Share the invite anytime — you can start and play before they open it."
                       : "Ready when you are."}
                 </p>
                 {(room.hostId === playerId || room.mode === "hotseat" || room.mode === "bot") && (
                   <button
                     type="button"
                     onClick={() => api.startGame(room.code, playerId)}
-                    disabled={room.mode === "online" && room.players.length < 2}
-                    className="rounded-xl bg-blue-500 px-5 py-2.5 font-bold hover:bg-blue-400 disabled:opacity-40"
+                    className="rounded-xl bg-blue-500 px-5 py-2.5 font-bold hover:bg-blue-400"
                   >
                     Start match
                   </button>
@@ -370,8 +369,8 @@ export function GameRoom({
                 <p className="mt-1 font-mono text-lg text-sky-300">{room.code}</p>
                 <p className="mt-2 break-all">{inviteUrl}</p>
                 <p className="mt-2">
-                  Async play: you don’t both need to be online. Take your turn anytime —
-                  reopen this link on the same device to resume board, energy, powers, and score.
+                  Async play: start and take turns before they open the link. When they join,
+                  they see the current board. Reopen this invite on the same device to resume.
                 </p>
               </>
             )}
